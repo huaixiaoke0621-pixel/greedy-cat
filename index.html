@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>贪吃猫</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a1628;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  }
+  #game-wrapper { position: relative; width: 1280px; height: 720px; }
+  canvas { display: block; width: 1280px; height: 720px; }
+
+  .overlay-btn {
+    position: absolute;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    z-index: 10;
+    transition: transform 0.18s cubic-bezier(.34,1.56,.64,1);
+  }
+  .overlay-btn:active {
+    transition: transform 0.06s;
+  }
+
+  #start-btn {
+    left: 49.3%; top: 83.7%;
+    transform: translate(-50%, -50%);
+    width: 300px; height: 90px;
+  }
+  #start-btn:hover { transform: translate(-50%, -50%) scale(1.06); }
+  #start-btn:active { transform: translate(-50%, -50%) scale(0.92); }
+
+  #restart-btn {
+    left: 42%; top: 75%;
+    transform: translate(-50%, -50%);
+    width: 250px; height: 75px;
+  }
+  #restart-btn:hover { transform: translate(-50%, -50%) scale(1.06); }
+  #restart-btn:active { transform: translate(-50%, -50%) scale(0.92); }
+
+  @keyframes btnBounce {
+    0% { transform: translate(-50%,-50%) scale(0.91); }
+    50% { transform: translate(-50%,-50%) scale(1.07); }
+    100% { transform: translate(-50%,-50%) scale(1); }
+  }
+  .btn-bounce { animation: btnBounce 0.35s ease; }
+
+  #camera-error {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.88);
+    display: none; flex-direction: column;
+    justify-content: center; align-items: center;
+    color: #fff; font-size: 22px; z-index: 100;
+  }
+  #camera-error p { margin-bottom: 24px; text-align: center; line-height: 1.8; }
+  #retry-btn {
+    padding: 14px 40px; font-size: 20px;
+    background: #ff6b35; color: #fff; border: none;
+    border-radius: 12px; cursor: pointer; transition: background 0.2s;
+  }
+  #retry-btn:hover { background: #ff8c5a; }
+  #loading-screen {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: #1a1a2e;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    color: #fff; font-size: 22px; z-index: 200;
+  }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 5px solid rgba(255,255,255,0.15);
+    border-top-color: #ff6b35; border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin-bottom: 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #back-btn {
+    position: absolute;
+    right: 16px; bottom: 16px;
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.85);
+    background: linear-gradient(145deg, #FFC048, #F08030);
+    box-shadow:
+      0 4px 10px rgba(0,0,0,0.25),
+      inset 0 2px 4px rgba(255,255,255,0.35),
+      inset 0 -2px 4px rgba(0,0,0,0.1);
+    color: #fff;
+    font-size: 26px;
+    line-height: 48px;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    cursor: pointer;
+    z-index: 10;
+    display: none;
+    transition: transform 0.18s cubic-bezier(.34,1.56,.64,1);
+  }
+  #back-btn:hover {
+    transform: scale(1.1);
+    box-shadow:
+      0 5px 14px rgba(0,0,0,0.3),
+      inset 0 2px 4px rgba(255,255,255,0.35);
+  }
+  #back-btn:active {
+    transform: scale(0.9);
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.25),
+      inset 0 2px 6px rgba(0,0,0,0.15);
+    transition: transform 0.06s;
+  }
+  #vs-btn {
+    left: 49.3%; top: 93%;
+    transform: translate(-50%, -50%);
+    width: 180px; height: 48px;
+    background: linear-gradient(135deg, #4ECDC4, #2196F3) !important;
+    border-radius: 16px; color: #fff; font-size: 18px; font-weight: bold;
+    border: 2px solid rgba(255,255,255,0.4);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  #vs-btn:hover { transform: translate(-50%,-50%) scale(1.08); }
+  #vs-btn:active { transform: translate(-50%,-50%) scale(0.92); }
+
+  #lobby-screen {
+    position: absolute; top:0; left:0; right:0; bottom:0;
+    background: rgba(8,24,52,0.92);
+    display: none; flex-direction: column;
+    justify-content: center; align-items: center;
+    color: #fff; z-index: 50;
+  }
+  .lobby-box {
+    background: linear-gradient(145deg, #1a3a5c, #0d2744);
+    border: 3px solid rgba(100,180,255,0.25);
+    border-radius: 24px; padding: 36px 48px; text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .lobby-box h2 { font-size: 30px; margin-bottom: 20px; color: #FFD700; }
+  .lobby-btn {
+    display: block; width: 220px; margin: 10px auto;
+    padding: 13px; font-size: 18px; border: none; border-radius: 14px;
+    cursor: pointer; color: #fff; font-weight: bold;
+    transition: transform 0.15s;
+  }
+  .lobby-btn:hover { transform: scale(1.05); }
+  .lobby-btn:active { transform: scale(0.95); }
+  .lb-create { background: linear-gradient(135deg, #FF9F43, #EE5A24); }
+  .lb-join { background: linear-gradient(135deg, #4ECDC4, #2C9F97); }
+  .room-code-big {
+    font-size: 48px; font-weight: bold; color: #FFD700;
+    letter-spacing: 10px; margin: 14px 0;
+  }
+  #room-code-input {
+    width: 180px; padding: 10px; font-size: 28px; text-align: center;
+    border-radius: 12px; border: 2px solid rgba(100,180,255,0.4);
+    background: rgba(255,255,255,0.1); color: #fff; letter-spacing: 6px;
+    margin-bottom: 14px; outline: none;
+  }
+  #room-code-input::placeholder { color: rgba(255,255,255,0.35); letter-spacing: 2px; font-size: 18px; }
+  .lobby-info { font-size: 16px; color: rgba(255,255,255,0.6); margin-top: 10px; }
+  .lobby-back { background: none; border: none; color: rgba(255,255,255,0.45); cursor: pointer; margin-top: 18px; font-size: 15px; }
+  .lobby-back:hover { color: #fff; }
+  .p-label { font-size: 18px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+</style>
+</head>
+<body>
+<div id="game-wrapper">
+  <canvas id="gameCanvas" width="1280" height="720"></canvas>
+  <button id="start-btn" class="overlay-btn" style="display:none;"></button>
+  <button id="vs-btn" class="overlay-btn" style="display:none;">双人对战</button>
+  <button id="restart-btn" class="overlay-btn" style="display:none;"></button>
+  <button id="back-btn" style="display:none;">🏠</button>
+
+  <div id="lobby-screen">
+    <div class="lobby-box" id="lobby-menu">
+      <h2>🐱 双人对战 🐱</h2>
+      <button class="lobby-btn lb-create" id="create-room-btn">创建房间</button>
+      <button class="lobby-btn lb-join" id="show-join-btn">加入房间</button>
+      <button class="lobby-back" id="lobby-back-btn">← 返回</button>
+    </div>
+    <div class="lobby-box" id="lobby-wait" style="display:none;">
+      <h2>房间已创建</h2>
+      <p style="color:rgba(255,255,255,0.6);margin-bottom:4px;">将房间号告诉对手</p>
+      <div class="room-code-big" id="room-code-show"></div>
+      <p class="lobby-info" id="wait-status">等待对手加入...</p>
+      <button class="lobby-back" id="wait-back-btn">← 取消</button>
+    </div>
+    <div class="lobby-box" id="lobby-join" style="display:none;">
+      <h2>加入房间</h2>
+      <input id="room-code-input" placeholder="房间号" maxlength="4">
+      <br>
+      <button class="lobby-btn lb-join" id="join-confirm-btn">加入</button>
+      <p class="lobby-info" id="join-status"></p>
+      <button class="lobby-back" id="join-back-btn">← 返回</button>
+    </div>
+  </div>
+  <div id="camera-error">
+    <p>需要摄像头权限才能玩游戏哦！<br>请允许浏览器访问您的摄像头</p>
+    <button id="retry-btn">重 试</button>
+  </div>
+  <div id="loading-screen"><div class="spinner"></div><p>资源加载中...</p></div>
+</div>
+<video id="webcam" autoplay playsinline style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+'use strict';
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = 1280, H = 720;
+
+// HiDPI / Retina: render at native device resolution for sharp output
+const dpr = window.devicePixelRatio || 1;
+canvas.width = W * dpr;
+canvas.height = H * dpr;
+canvas.style.width = W + 'px';
+canvas.style.height = H + 'px';
+ctx.scale(dpr, dpr);
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = 'high';
+
+// ════════════════════════════════════════
+//  Audio (Web Audio API)
+// ════════════════════════════════════════
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTone(freq, freq2, dur, type, vol) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, audioCtx.currentTime + dur);
+  g.gain.setValueAtTime(vol || 0.25, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+// ── BGM: piano-like synthesis rendered to AudioBuffer ──
+let bgmSource = null, bgmGainNode = null, currentBgm = null;
+let menuBuf = null, gameBuf = null;
+
+async function renderPianoBgm(melody, bass, bpm, melVol, bassVol) {
+  const sr = 44100, beat = 60 / bpm;
+  let total = 0;
+  for (const n of melody) total += n[1];
+  const dur = total * beat;
+  const offline = new OfflineAudioContext(1, Math.ceil((dur + 0.3) * sr), sr);
+
+  function pianoNote(freq, start, nd, vol) {
+    const harms = [[1, vol], [2, vol * 0.28], [3, vol * 0.08]];
+    for (const [mult, v] of harms) {
+      const o = offline.createOscillator(), g = offline.createGain();
+      o.connect(g); g.connect(offline.destination);
+      o.type = 'sine'; o.frequency.value = freq * mult;
+      g.gain.setValueAtTime(0, start);
+      g.gain.linearRampToValueAtTime(v, start + 0.006);
+      g.gain.exponentialRampToValueAtTime(v * 0.35, start + nd * 0.35);
+      g.gain.exponentialRampToValueAtTime(0.001, start + nd * 0.88);
+      o.start(start); o.stop(start + nd);
+    }
+  }
+
+  let t = 0;
+  for (const [freq, beats] of melody) {
+    if (freq > 0) pianoNote(freq, t, beats * beat, melVol);
+    t += beats * beat;
+  }
+  if (bass) {
+    t = 0;
+    for (const [freq, beats] of bass) {
+      if (freq > 0) pianoNote(freq, t, beats * beat, bassVol);
+      t += beats * beat;
+    }
+  }
+  return await offline.startRendering();
+}
+
+async function preRenderBgm() {
+  const C3=130.81,D3=146.83,F3=174.61,G3=196,A3=220;
+  const G4=392,A4=440;
+  const C5=523.25,D5=587.33,E5=659.25,G5=783.99,A5=880;
+
+  menuBuf = await renderPianoBgm([
+    [E5,1],[G5,1],[C5*2,1],[A5,1],  [G5,1],[E5,1],[D5,1],[C5,1],
+    [E5,1],[G5,1],[A5,1],[G5,1],    [E5,1],[D5,1],[C5,2],
+    [C5,1],[D5,1],[E5,1],[G5,1],    [A5,1],[G5,1],[E5,1],[D5,1],
+    [C5,1],[E5,1],[G5,1],[A5,1],    [G5,1],[E5,1],[C5,1],[0,1],
+  ],[
+    [C3,4],[A3,4], [C3,4],[G3,4],
+    [A3,4],[D3,4], [C3,4],[G3,2],[C3,2],
+  ], 120, 0.065, 0.028);
+
+  gameBuf = await renderPianoBgm([
+    [C5,.5],[D5,.5],[E5,.5],[G5,.5],[E5,.5],[D5,.5],[C5,1],
+    [G4,.5],[A4,.5],[C5,.5],[D5,.5],[C5,1],[A4,1],
+    [E5,.5],[D5,.5],[C5,.5],[A4,.5],[G4,.5],[A4,.5],[C5,1],
+    [D5,1],[E5,1],[C5,1],[0,1],
+    [G4,.5],[C5,.5],[E5,.5],[C5,.5],[G5,.5],[E5,.5],[C5,1],
+    [A4,.5],[C5,.5],[D5,.5],[E5,.5],[D5,1],[C5,1],
+    [E5,.5],[G5,.5],[A5,.5],[G5,.5],[E5,.5],[D5,.5],[C5,1],
+    [D5,.5],[C5,.5],[A4,1],[G4,1],[0,1],
+  ],[
+    [C3,4],[G3,4], [A3,4],[G3,4],
+    [C3,4],[A3,4], [F3,4],[G3,2],[C3,2],
+  ], 152, 0.05, 0.022);
+}
+
+function playBgm(name) {
+  if (currentBgm === name) return;
+  stopBgm();
+  ensureAudio();
+  if (!audioCtx) return;
+  currentBgm = name;
+  const buf = name === 'menu' ? menuBuf : gameBuf;
+  if (!buf) return;
+  if (!bgmGainNode) { bgmGainNode = audioCtx.createGain(); bgmGainNode.connect(audioCtx.destination); }
+  bgmGainNode.gain.value = name === 'menu' ? 0.9 : 0.55;
+  bgmSource = audioCtx.createBufferSource();
+  bgmSource.buffer = buf;
+  bgmSource.loop = true;
+  bgmSource.connect(bgmGainNode);
+  bgmSource.start();
+}
+
+function stopBgm() {
+  if (bgmSource) { try { bgmSource.stop(); } catch(e) {} bgmSource = null; }
+  currentBgm = null;
+}
+
+// ── SFX ──
+function sfx(name) {
+  ensureAudio();
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  switch(name) {
+    case 'eat':
+      playTone(660,1320,0.12,'sine',0.3);
+      setTimeout(()=>playTone(880,1760,0.1,'sine',0.2),60);
+      break;
+    case 'rainbow':
+      playTone(523,1047,0.1,'sine',0.3);
+      setTimeout(()=>playTone(659,1318,0.1,'sine',0.3),80);
+      setTimeout(()=>playTone(784,1568,0.15,'sine',0.3),160);
+      setTimeout(()=>playTone(1047,2094,0.2,'triangle',0.25),260);
+      break;
+    case 'bad':
+      playTone(300,100,0.35,'sawtooth',0.15);
+      break;
+    case 'click':
+      playTone(800,600,0.06,'square',0.12);
+      break;
+    case 'start':
+      playTone(523,784,0.15,'sine',0.2);
+      setTimeout(()=>playTone(659,988,0.15,'sine',0.2),120);
+      setTimeout(()=>playTone(784,1175,0.25,'sine',0.2),240);
+      break;
+    case 'victory':
+      playTone(523,523,0.15,'triangle',0.22);
+      setTimeout(()=>playTone(523,523,0.15,'triangle',0.22),160);
+      setTimeout(()=>playTone(523,523,0.15,'triangle',0.22),320);
+      setTimeout(()=>playTone(659,659,0.3,'triangle',0.22),500);
+      setTimeout(()=>playTone(784,784,0.2,'triangle',0.22),820);
+      setTimeout(()=>playTone(1047,1047,0.5,'triangle',0.28),1040);
+      break;
+    case 'meow': {
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.connect(g);g.connect(audioCtx.destination);o.type='sine';
+      o.frequency.setValueAtTime(480,t);
+      o.frequency.exponentialRampToValueAtTime(850,t+0.08);
+      o.frequency.exponentialRampToValueAtTime(650,t+0.2);
+      o.frequency.exponentialRampToValueAtTime(900,t+0.28);
+      o.frequency.exponentialRampToValueAtTime(500,t+0.42);
+      g.gain.setValueAtTime(0.28,t);
+      g.gain.setValueAtTime(0.25,t+0.25);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.45);
+      o.start(t);o.stop(t+0.5);
+      break;
+    }
+    case 'scaredMeow': {
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.connect(g);g.connect(audioCtx.destination);o.type='sawtooth';
+      o.frequency.setValueAtTime(800,t);
+      o.frequency.exponentialRampToValueAtTime(1400,t+0.06);
+      o.frequency.exponentialRampToValueAtTime(600,t+0.2);
+      o.frequency.setValueAtTime(1200,t+0.2);
+      o.frequency.exponentialRampToValueAtTime(350,t+0.45);
+      g.gain.setValueAtTime(0.16,t);
+      g.gain.setValueAtTime(0.14,t+0.2);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.5);
+      o.start(t);o.stop(t+0.55);
+      break;
+    }
+    case 'tick':
+      playTone(1000,800,0.05,'square',0.08);
+      break;
+  }
+}
+
+// ════════════════════════════════════════
+//  BG Removal: black or white
+// ════════════════════════════════════════
+function removeBg(image, size, mode) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const cx = c.getContext('2d', {willReadFrequently:true});
+    cx.drawImage(image, 0, 0, size, size);
+    if (mode === 'none') return c;
+    const id = cx.getImageData(0, 0, size, size);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const br = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
+      if (mode === 'white') {
+        const r=d[i],g=d[i+1],b=d[i+2];
+        const isWhite = r>235 && g>235 && b>235 && Math.abs(r-g)<12 && Math.abs(g-b)<12 && Math.abs(r-b)<12;
+        if (isWhite && br > 245) d[i+3] = 0;
+        else if (isWhite && br > 225) d[i+3] = Math.round(((245 - br) / 20) * d[i+3]);
+      } else {
+        if (br < 25) d[i+3] = 0;
+        else if (br < 55) d[i+3] = Math.round(((br - 25) / 30) * d[i+3]);
+      }
+    }
+    cx.putImageData(id, 0, 0);
+    return c;
+  } catch(e) { return image; }
+}
+
+// ════════════════════════════════════════
+//  Image Preloading
+// ════════════════════════════════════════
+const SRC = {
+  startBg:'assets/开始界面.png', gameBg:'assets/背景.png', endBg:'assets/结束界面.png',
+  catNormal:'assets/正常状态.png', catLookUp:'assets/向上看.png',
+  catOpen:'assets/张大嘴.png', catEat:'assets/仰头.png',
+  catDrool:'assets/流口水.png', catHurt:'assets/受伤.png',
+  catHappy:'assets/开心.png', catDisgust:'assets/恶心.png',
+  fishBlue:'assets/小蓝鱼.png', fishGreen:'assets/小绿鱼.png',
+  fishRed:'assets/小红鱼.png', fishRainbow:'assets/彩虹鱼.png',
+  puffer:'assets/河豚.png', turtle:'assets/小乌龟.png',
+  sock:'assets/臭袜子.png', coin:'assets/金币.png',
+};
+
+const SPRITE_CFG = {
+  catNormal:{s:512,m:'black'}, catLookUp:{s:512,m:'black'}, catOpen:{s:512,m:'black'},
+  catEat:{s:512,m:'black'}, catDrool:{s:512,m:'black'}, catHurt:{s:512,m:'black'},
+  catHappy:{s:512,m:'none'}, catDisgust:{s:512,m:'none'},
+  fishBlue:{s:160,m:'black'}, fishGreen:{s:160,m:'black'},
+  fishRed:{s:160,m:'black'}, fishRainbow:{s:300,m:'black'},
+  puffer:{s:220,m:'black'},
+  turtle:{s:240,m:'none'}, sock:{s:220,m:'none'}, coin:{s:320,m:'none'},
+};
+
+const img = {};
+const BG_KEYS = new Set(['startBg','gameBg','endBg']);
+function loadImg(src){return new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>j(new Error(src));i.src=src;})}
+
+async function preScaleBg(image) {
+  const tw = Math.round(W * dpr), th = Math.round(H * dpr);
+  try {
+    return await createImageBitmap(image, {resizeWidth:tw, resizeHeight:th, resizeQuality:'high'});
+  } catch(e) {
+    const c = document.createElement('canvas');
+    c.width = tw; c.height = th;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(image, 0, 0, tw, th);
+    return c;
+  }
+}
+
+async function loadAllImages(){
+  const e=Object.entries(SRC);
+  await Promise.all(e.map(([k,s])=>loadImg(s).then(i=>{
+    const c=SPRITE_CFG[k];
+    img[k]=c?removeBg(i,c.s,c.m):i;
+  })));
+  for (const k of BG_KEYS) {
+    if (img[k]) img[k] = await preScaleBg(img[k]);
+  }
+}
+
+// ════════════════════════════════════════
+//  Game State
+// ════════════════════════════════════════
+let gameState='loading', score=0, timeLeft=60, gameStartTime=0;
+let fishes=[], floatingTexts=[], fishSpawnAcc=0;
+const FISH_INTERVAL=1.2;
+
+let catX=W/2, targetCatX=W/2, prevCatX=W/2, catVelocity=0, lastMoveTime=0;
+const CAT_SIZE=250, CAT_Y=H-CAT_SIZE*0.38;
+let catOverrideState=null, catOverrideTimer=0;
+let mouthOpenWide=false, mouthSlightlyOpen=false, mouthRatio=0;
+let faceNoseX=0.5, faceDetected=false, cameraGranted=false;
+let shakeX=0, shakeY=0, shakeRemaining=0;
+let lastTickSec = -1, lastMilestone = 0;
+
+// ════════════════════════════════════════
+//  Multiplayer
+// ════════════════════════════════════════
+let isMulti=false, isHost=false, ws=null, syncAcc=0;
+const SYNC_HZ=1/20;
+let remoteFace={noseX:0.5,mouthRatio:0,mouthWide:false,detected:false};
+let p2={catX:W/2,targetCatX:W/2,prevCatX:W/2,vel:0,lastMove:0,
+  overState:null,overTimer:0,score:0,milestone:0,imgKey:'catNormal'};
+let p1ImgKey='catNormal';
+
+function sendWS(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj));}
+
+// ════════════════════════════════════════
+//  Drop Item Types
+// ════════════════════════════════════════
+const FISH_TYPES = [
+  {key:'fishBlue',   pts:10,  speed:110, sz:60,  w:35, wave:false},
+  {key:'fishGreen',  pts:20,  speed:145, sz:60,  w:25, wave:false},
+  {key:'fishRed',    pts:30,  speed:185, sz:55,  w:12, wave:false},
+  {key:'turtle',     pts:50,  speed:100, sz:90,  w:10, wave:false},
+  {key:'fishRainbow',pts:100, speed:130, sz:120, w:10, wave:true},
+  {key:'puffer',     pts:-50, speed:95,  sz:85,  w:12, wave:false},
+  {key:'sock',       pts:-30, speed:105, sz:80,  w:8,  wave:false},
+];
+
+function weightedRandom(){
+  const t=FISH_TYPES.reduce((s,f)=>s+f.w,0);
+  let r=Math.random()*t;
+  for(const ft of FISH_TYPES){r-=ft.w;if(r<=0)return ft;}
+  return FISH_TYPES[0];
+}
+function spawnFish(){
+  const ft=weightedRandom(), x=80+Math.random()*(W-160);
+  fishes.push({ft,x,baseX:x,y:-ft.sz,phase:Math.random()*Math.PI*2});
+}
+
+// ════════════════════════════════════════
+//  Floating Score Text (with coin)
+// ════════════════════════════════════════
+function addFloat(x,y,pts){
+  let color='#FFF',text='+'+pts;
+  if(pts===100){color='#FFD700';text='+100';}
+  else if(pts===50){color='#7CFC00';text='+50';}
+  else if(pts<0){color='#FF4444';text=String(pts);}
+  floatingTexts.push({x,y,text,color,life:1.0,showCoin:pts>0});
+}
+
+// ════════════════════════════════════════
+//  MediaPipe FaceMesh
+// ════════════════════════════════════════
+function onFaceResults(r){
+  if(!r.multiFaceLandmarks||r.multiFaceLandmarks.length===0){faceDetected=false;return;}
+  faceDetected=true;
+  const lm=r.multiFaceLandmarks[0];
+  faceNoseX=1.0-lm[1].x;
+  const ul=lm[13],ll=lm[14];
+  const md=Math.hypot(ul.x-ll.x,ul.y-ll.y,ul.z-ll.z);
+  const le=lm[33],re=lm[263];
+  const ed=Math.hypot(le.x-re.x,le.y-re.y,le.z-re.z);
+  mouthRatio=ed>0.001?md/ed:0;
+  mouthSlightlyOpen=mouthRatio>=0.15;
+  mouthOpenWide=mouthRatio>=0.22;
+}
+
+async function initFaceTracking(){
+  const v=document.getElementById('webcam');
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}});
+    v.srcObject=s; await v.play(); cameraGranted=true;
+  }catch(e){
+    document.getElementById('camera-error').style.display='flex';return;
+  }
+  try{
+    if(typeof FaceMesh==='undefined')return;
+    const fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
+    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    fm.onResults(onFaceResults);
+    async function loop(){if(v.readyState>=2){try{await fm.send({image:v});}catch(e){}}requestAnimationFrame(loop);}
+    loop();
+  }catch(e){console.error('FaceMesh error:',e);}
+}
+
+// ════════════════════════════════════════
+//  Drawing Utilities
+// ════════════════════════════════════════
+function strokeText(text,x,y,size,fill,stroke,align,baseline){
+  ctx.save();
+  ctx.font=`bold ${size}px 'Microsoft YaHei','PingFang SC',sans-serif`;
+  ctx.textAlign=align||'left'; ctx.textBaseline=baseline||'top';
+  ctx.lineWidth=5; ctx.lineJoin='round';
+  ctx.strokeStyle=stroke||'#000'; ctx.strokeText(text,x,y);
+  ctx.fillStyle=fill||'#fff'; ctx.fillText(text,x,y);
+  ctx.restore();
+}
+function drawSprite(image,cx,cy,w,h){if(!image)return;ctx.drawImage(image,cx-w/2,cy-h/2,w,h);}
+
+function drawCoinIcon(x,y,size,shadow){
+  if(!img.coin)return;
+  if(shadow){
+    ctx.save();
+    ctx.shadowColor=shadow.color||'rgba(100,60,10,0.4)';
+    ctx.shadowBlur=shadow.blur||8;
+    ctx.shadowOffsetX=shadow.ox||2;
+    ctx.shadowOffsetY=shadow.oy||3;
+  }
+  ctx.drawImage(img.coin,x,y-size/2,size,size);
+  if(shadow) ctx.restore();
+}
+
+// ════════════════════════════════════════
+//  Cat Image Selection
+// ════════════════════════════════════════
+function isRainbowNearby(){
+  for(const f of fishes){
+    if(f.ft.key==='fishRainbow'){
+      const dx=Math.abs(f.x-catX), dy=CAT_Y-f.y;
+      if(dx<300&&dy>0&&dy<300)return true;
+    }
+  }
+  return false;
+}
+
+function getCatImg(){
+  if(catOverrideState==='hurt') return img.catHurt;
+  if(catOverrideState==='disgust') return img.catDisgust;
+  if(catOverrideState==='happy') return img.catHappy;
+  if(mouthOpenWide) return img.catOpen;
+  if(isRainbowNearby()) return img.catDrool;
+  const idle=(performance.now()-lastMoveTime)/1000;
+  if(idle<0.5) return img.catLookUp;
+  return img.catNormal;
+}
+
+// ════════════════════════════════════════
+//  Collision
+// ════════════════════════════════════════
+function eatTestAt(fish,cx,mouthOpen){
+  if(!mouthOpen)return false;
+  const mx=cx, my=CAT_Y-CAT_SIZE*0.22;
+  const hw=CAT_SIZE*0.45, hh=CAT_SIZE*0.35;
+  const fr=fish.ft.sz*0.35;
+  return Math.abs(fish.x-mx)<hw/2+fr && Math.abs(fish.y-my)<hh/2+fr;
+}
+function touchTestAt(fish,cx){
+  const dx=Math.abs(fish.x-cx);
+  const dy=Math.abs(fish.y-CAT_Y);
+  const fr=fish.ft.sz*0.35;
+  return dx<CAT_SIZE*0.35+fr && dy<CAT_SIZE*0.4+fr;
+}
+function eatTest(fish){return eatTestAt(fish,catX,mouthOpenWide);}
+function touchTest(fish){return touchTestAt(fish,catX);}
+
+// ════════════════════════════════════════
+//  Shake
+// ════════════════════════════════════════
+function startShake(d){shakeRemaining=d;}
+function updateShake(dt){
+  if(shakeRemaining>0){
+    shakeRemaining-=dt;
+    const i=7*Math.max(0,shakeRemaining/0.35);
+    shakeX=(Math.random()-0.5)*2*i; shakeY=(Math.random()-0.5)*2*i;
+  }else{shakeX=shakeY=0;}
+}
+
+// ════════════════════════════════════════
+//  P2 helpers (multiplayer)
+// ════════════════════════════════════════
+function isRainbowNearP2(){
+  for(const f of fishes){
+    if(f.ft.key==='fishRainbow'){
+      if(Math.abs(f.x-p2.catX)<300&&CAT_Y-f.y>0&&CAT_Y-f.y<300)return true;
+    }
+  }return false;
+}
+function getCatImgKeyP2(){
+  if(p2.overState==='hurt')return'catHurt';
+  if(p2.overState==='disgust')return'catDisgust';
+  if(p2.overState==='happy')return'catHappy';
+  if(remoteFace.mouthWide)return'catOpen';
+  if(isRainbowNearP2())return'catDrool';
+  if((performance.now()-p2.lastMove)/1000<0.5)return'catLookUp';
+  return'catNormal';
+}
+function getCatImgKey(){
+  if(catOverrideState==='hurt')return'catHurt';
+  if(catOverrideState==='disgust')return'catDisgust';
+  if(catOverrideState==='happy')return'catHappy';
+  if(mouthOpenWide)return'catOpen';
+  if(isRainbowNearby())return'catDrool';
+  if((performance.now()-lastMoveTime)/1000<0.5)return'catLookUp';
+  return'catNormal';
+}
+
+function buildState(){
+  return{type:'state',tl:timeLeft,
+    hx:catX,hi:getCatImgKey(),hs:score,
+    gx:p2.catX,gi:getCatImgKeyP2(),gs:p2.score,
+    f:fishes.map(f=>[FISH_TYPES.indexOf(f.ft),f.x,f.y,f.baseX,f.phase]),
+    ft:floatingTexts.map(f=>[f.text,f.x,f.y,f.color,f.life,f.showCoin?1:0]),
+    sx:shakeX,sy:shakeY};
+}
+function applyState(s){
+  timeLeft=s.tl;
+  catX=s.hx; p1ImgKey=s.hi; score=s.hs;
+  p2.catX=s.gx; p2.imgKey=s.gi; p2.score=s.gs;
+  fishes=s.f.map(([ti,x,y,bx,ph])=>({ft:FISH_TYPES[ti],x,y,baseX:bx,phase:ph}));
+  floatingTexts=s.ft.map(([t,x,y,c,l,sc])=>({text:t,x,y,color:c,life:l,showCoin:!!sc}));
+  shakeX=s.sx;shakeY=s.sy;
+}
+
+function handleWsMsg(e){
+  let m;try{m=JSON.parse(e.data);}catch{return;}
+  if(m.type==='peer_joined'){
+    document.getElementById('wait-status').textContent='对手已加入！即将开始...';
+    setTimeout(()=>{
+      document.getElementById('lobby-screen').style.display='none';
+      document.getElementById('back-btn').style.display='block';
+      gameState='playing';resetGame();playBgm('game');sfx('start');
+      sendWS({type:'game_start'});
+    },800);
+  }else if(m.type==='game_start'){
+    document.getElementById('lobby-screen').style.display='none';
+    document.getElementById('back-btn').style.display='block';
+    gameState='playing';resetGame();playBgm('game');sfx('start');
+  }else if(m.type==='face'){
+    remoteFace.noseX=m.nx;remoteFace.mouthRatio=m.mr;
+    remoteFace.mouthWide=m.mw;remoteFace.detected=m.fd;
+  }else if(m.type==='state'){
+    applyState(m);
+    if(m.tl<=0&&gameState==='playing'){
+      gameState='ended';
+      document.getElementById('restart-btn').style.display='block';
+      document.getElementById('back-btn').style.display='none';
+      stopBgm();sfx('victory');
+    }
+  }else if(m.type==='game_end'){
+    if(gameState==='playing'){
+      gameState='ended';
+      document.getElementById('restart-btn').style.display='block';
+      document.getElementById('back-btn').style.display='none';
+      stopBgm();sfx('victory');
+    }
+  }else if(m.type==='peer_left'){
+    alert('对手已断开连接');
+    isMulti=false;ws=null;
+    gameState='start';
+    document.getElementById('lobby-screen').style.display='none';
+    document.getElementById('back-btn').style.display='none';
+    document.getElementById('restart-btn').style.display='none';
+    document.getElementById('start-btn').style.display='block';
+    document.getElementById('vs-btn').style.display='block';
+    stopBgm();
+  }else if(m.type==='error'){
+    document.getElementById('join-status').textContent=m.msg;
+  }else if(m.type==='joined'){
+    document.getElementById('lobby-join').style.display='none';
+    document.getElementById('lobby-wait').style.display='block';
+    document.getElementById('room-code-show').textContent='已连接';
+    document.getElementById('wait-status').textContent='等待主机开始...';
+  }else if(m.type==='created'){
+    document.getElementById('lobby-menu').style.display='none';
+    document.getElementById('lobby-wait').style.display='block';
+    document.getElementById('room-code-show').textContent=m.code;
+  }
+}
+
+function connectWS(){
+  const proto=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${proto}://${location.host}`);
+  ws.onmessage=handleWsMsg;
+  ws.onerror=()=>{alert('无法连接服务器');};
+  return new Promise(r=>{ws.onopen=r;});
+}
+
+// ════════════════════════════════════════
+//  Reset
+// ════════════════════════════════════════
+function resetGame(){
+  score=0;timeLeft=60;fishes=[];floatingTexts=[];fishSpawnAcc=0;
+  catOverrideState=null;catOverrideTimer=0;
+  shakeRemaining=0;shakeX=shakeY=0;lastMoveTime=0;lastTickSec=-1;lastMilestone=0;
+  catX=W/2;targetCatX=W/2;
+  p2.catX=W/2;p2.targetCatX=W/2;p2.score=0;p2.milestone=0;
+  p2.overState=null;p2.overTimer=0;p2.lastMove=0;
+  gameStartTime=performance.now();
+}
+
+// ════════════════════════════════════════
+//  Update
+// ════════════════════════════════════════
+function updatePlaying(dt){
+  timeLeft=Math.max(0,60-(performance.now()-gameStartTime)/1000);
+
+  // Countdown tick sound
+  const sec=Math.ceil(timeLeft);
+  if(sec<=10 && sec>0 && sec!==lastTickSec){lastTickSec=sec;sfx('tick');}
+
+  if(timeLeft<=0){
+    gameState='ended';
+    document.getElementById('restart-btn').style.display='block';
+    document.getElementById('back-btn').style.display='none';
+    stopBgm(); sfx('victory');
+    if(isMulti&&isHost)sendWS({type:'game_end'});
+    return;
+  }
+
+  if(faceDetected){
+    targetCatX=W/2+(faceNoseX-0.5)*W*1.5;
+    targetCatX=Math.max(CAT_SIZE/2,Math.min(W-CAT_SIZE/2,targetCatX));
+  }
+  prevCatX=catX;
+  catX+=(targetCatX-catX)*Math.min(1,15*dt);
+  catX=Math.max(CAT_SIZE/2,Math.min(W-CAT_SIZE/2,catX));
+  catVelocity=dt>0?Math.abs(catX-prevCatX)/dt:0;
+  if(catVelocity>20) lastMoveTime=performance.now();
+
+  if(catOverrideState){
+    catOverrideTimer-=dt;
+    if(catOverrideTimer<=0){catOverrideState=null;lastMoveTime=performance.now();}
+  }
+
+  fishSpawnAcc+=dt;
+  if(fishSpawnAcc>=FISH_INTERVAL){fishSpawnAcc-=FISH_INTERVAL;spawnFish();}
+
+  for(let i=fishes.length-1;i>=0;i--){
+    const f=fishes[i];
+    f.y+=f.ft.speed*dt;
+    if(f.ft.wave){f.phase+=dt*3.2;f.x=f.baseX+Math.sin(f.phase)*75;}
+    if(f.y>H+f.ft.sz){fishes.splice(i,1);continue;}
+
+    const isBad = f.ft.key==='puffer'||f.ft.key==='sock';
+    let hit = isBad ? touchTest(f) : eatTest(f);
+    let who = 1;
+    if(!hit && isMulti && isHost){
+      const p2hit = isBad ? touchTestAt(f,p2.catX) : eatTestAt(f,p2.catX,remoteFace.mouthWide);
+      if(p2hit){hit=true;who=2;}
+    }
+    if(hit){
+      if(who===1){
+        score+=f.ft.pts;if(score<0)score=0;
+      }else{
+        p2.score+=f.ft.pts;if(p2.score<0)p2.score=0;
+      }
+      addFloat(f.x,f.y-30,f.ft.pts);
+
+      if(f.ft.key==='puffer'){
+        if(who===1){catOverrideState='hurt';catOverrideTimer=1.0;}
+        else{p2.overState='hurt';p2.overTimer=1.0;}
+        startShake(0.35);sfx('bad');
+      }else if(f.ft.key==='sock'){
+        if(who===1){catOverrideState='disgust';catOverrideTimer=1.0;}
+        else{p2.overState='disgust';p2.overTimer=1.0;}
+        startShake(0.3);sfx('scaredMeow');
+      }else{
+        if(who===1){
+          if(catOverrideState!=='hurt'&&catOverrideState!=='disgust'){catOverrideState='happy';catOverrideTimer=0.5;}
+        }else{
+          if(p2.overState!=='hurt'&&p2.overState!=='disgust'){p2.overState='happy';p2.overTimer=0.5;}
+        }
+        if(f.ft.key==='fishRainbow') sfx('rainbow'); else sfx('eat');
+      }
+      fishes.splice(i,1);
+    }
+  }
+
+  // P2 cat movement (multiplayer host only)
+  if(isMulti&&isHost){
+    if(remoteFace.detected){
+      p2.targetCatX=W/2+(remoteFace.noseX-0.5)*W*1.5;
+      p2.targetCatX=Math.max(CAT_SIZE/2,Math.min(W-CAT_SIZE/2,p2.targetCatX));
+    }
+    p2.prevCatX=p2.catX;
+    p2.catX+=(p2.targetCatX-p2.catX)*Math.min(1,15*dt);
+    p2.catX=Math.max(CAT_SIZE/2,Math.min(W-CAT_SIZE/2,p2.catX));
+    p2.vel=dt>0?Math.abs(p2.catX-p2.prevCatX)/dt:0;
+    if(p2.vel>20)p2.lastMove=performance.now();
+    if(p2.overState){p2.overTimer-=dt;if(p2.overTimer<=0){p2.overState=null;p2.lastMove=performance.now();}}
+    const p2ms=Math.floor(p2.score/200);
+    if(p2ms>p2.milestone){sfx('meow');p2.milestone=p2ms;}
+  }
+
+  for(let i=floatingTexts.length-1;i>=0;i--){
+    const ft=floatingTexts[i];
+    ft.y-=55*dt;ft.life-=dt;
+    if(ft.life<=0)floatingTexts.splice(i,1);
+  }
+
+  const ms=Math.floor(score/200);
+  if(ms>lastMilestone){sfx('meow');lastMilestone=ms;}
+
+  updateShake(dt);
+
+  // Sync state to guest
+  if(isMulti&&isHost){
+    syncAcc+=dt;
+    if(syncAcc>=SYNC_HZ){syncAcc-=SYNC_HZ;sendWS(buildState());}
+  }
+}
+
+// ════════════════════════════════════════
+//  Render
+// ════════════════════════════════════════
+function drawBg(bgImg,ox,oy){
+  ctx.save();
+  ctx.setTransform(1,0,0,1,(ox||0)*dpr,(oy||0)*dpr);
+  ctx.drawImage(bgImg,0,0);
+  ctx.restore();
+}
+function renderStart(){drawBg(img.startBg);}
+
+function renderPlaying(){
+  ctx.save();ctx.translate(shakeX,shakeY);
+  drawBg(img.gameBg,shakeX,shakeY);
+
+  for(const f of fishes) drawSprite(img[f.ft.key],f.x,f.y,f.ft.sz,f.ft.sz);
+
+  // Draw cats
+  if(isMulti){
+    const guestKey=isHost?getCatImgKeyP2():p2.imgKey;
+    const hostKey=isHost?getCatImgKey():p1ImgKey;
+    drawSprite(img[hostKey],catX,CAT_Y,CAT_SIZE,CAT_SIZE);
+    drawSprite(img[guestKey],p2.catX,CAT_Y,CAT_SIZE,CAT_SIZE);
+    // P1/P2 labels
+    ctx.save();
+    strokeText('P1',catX,CAT_Y-CAT_SIZE*0.58,20,'#4FC3F7','#0D47A1','center','middle');
+    strokeText('P2',p2.catX,CAT_Y-CAT_SIZE*0.58,20,'#FF8A65','#BF360C','center','middle');
+    ctx.restore();
+  }else{
+    drawSprite(getCatImg(),catX,CAT_Y,CAT_SIZE,CAT_SIZE);
+  }
+
+  for(const ft of floatingTexts){
+    ctx.save();ctx.globalAlpha=Math.max(0,ft.life);
+    strokeText(ft.text,ft.x,ft.y,28,ft.color,'#000','center','middle');
+    if(ft.showCoin){
+      ctx.font='bold 28px Microsoft YaHei';
+      const m=ctx.measureText(ft.text);
+      drawCoinIcon(ft.x+m.width/2+4,ft.y,30);
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // HUD
+  if(isMulti){
+    const dt2=Math.ceil(timeLeft);
+    strokeText('⏱ '+dt2+'s',W/2,18,30,'#fff','#000','center');
+    // P1 score left
+    const ds1=Math.max(0,score);
+    strokeText('P1 '+ds1,24,18,28,'#4FC3F7','#000','left');
+    ctx.font='bold 28px Microsoft YaHei';
+    const sw1=ctx.measureText('P1 '+ds1).width;
+    drawCoinIcon(24+sw1+4,34,30);
+    // P2 score right
+    const ds2=Math.max(0,isHost?p2.score:p2.score);
+    const s2Str='P2 '+ds2;
+    ctx.font='bold 28px Microsoft YaHei';
+    const sw2=ctx.measureText(s2Str).width;
+    strokeText(s2Str,W-24-sw2-36,18,28,'#FF8A65','#000','left');
+    drawCoinIcon(W-24-32,34,30);
+  }else{
+    const dt2=Math.ceil(timeLeft), ds=Math.max(0,score);
+    strokeText('⏱ '+dt2+'s',24,18,32,'#fff','#000','left');
+    ctx.font='bold 32px Microsoft YaHei';
+    const scoreStr=String(ds);
+    const scoreW=ctx.measureText(scoreStr).width;
+    const coinSz=36;
+    const totalW=scoreW+coinSz+6;
+    const rightX=W-24;
+    const startX=rightX-totalW;
+    strokeText(scoreStr,startX,18,32,'#fff','#000','left');
+    drawCoinIcon(startX+scoreW+6,34,coinSz);
+  }
+}
+
+function renderEnd(){
+  drawBg(img.endBg);
+  const px=636, py=352;
+  if(isMulti){
+    const s1=Math.max(0,score),s2=Math.max(0,p2.score);
+    let winner=s1>s2?'P1 胜利!':s2>s1?'P2 胜利!':'平局!';
+    strokeText(winner,px,py-50,42,'#FFD700','#5C3A1E','center','middle');
+    // P1
+    strokeText('P1: '+s1,px,py+10,36,'#4FC3F7','#0D47A1','center','middle');
+    ctx.font='bold 36px Microsoft YaHei';
+    const sw1=ctx.measureText('P1: '+s1).width;
+    drawCoinIcon(px+sw1/2+6,py+10,40,{color:'rgba(90,55,10,0.4)',blur:8,ox:2,oy:3});
+    // P2
+    strokeText('P2: '+s2,px,py+60,36,'#FF8A65','#BF360C','center','middle');
+    ctx.font='bold 36px Microsoft YaHei';
+    const sw2=ctx.measureText('P2: '+s2).width;
+    drawCoinIcon(px+sw2/2+6,py+60,40,{color:'rgba(90,55,10,0.4)',blur:8,ox:2,oy:3});
+  }else{
+    const ds=Math.max(0,score);
+    const scoreStr=String(ds);
+    ctx.font='bold 60px Microsoft YaHei';
+    const sw=ctx.measureText(scoreStr).width;
+    const coinSz=64;
+    const totalW=sw+coinSz+12;
+    const sx=px-totalW/2;
+    strokeText(scoreStr,sx,py,60,'#5C3A1E','#D4A96A','left','middle');
+    drawCoinIcon(sx+sw+12,py,coinSz,{color:'rgba(90,55,10,0.45)',blur:10,ox:3,oy:5});
+  }
+}
+
+// ════════════════════════════════════════
+//  Main Loop
+// ════════════════════════════════════════
+let prevTime=0, faceSendAcc=0;
+function loop(now){
+  const dt=prevTime?Math.min((now-prevTime)/1000,0.1):1/60;
+  prevTime=now;
+  ctx.clearRect(0,0,W,H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  if(gameState==='start') renderStart();
+  else if(gameState==='playing'){
+    if(!isMulti||isHost){
+      updatePlaying(dt);
+    }else{
+      faceSendAcc+=dt;
+      if(faceSendAcc>=SYNC_HZ){
+        faceSendAcc-=SYNC_HZ;
+        sendWS({type:'face',nx:faceNoseX,mr:mouthRatio,mw:mouthOpenWide,fd:faceDetected});
+      }
+    }
+    if(gameState==='playing')renderPlaying();else renderEnd();
+  }else if(gameState==='ended') renderEnd();
+  requestAnimationFrame(loop);
+}
+
+// ════════════════════════════════════════
+//  UI Buttons
+// ════════════════════════════════════════
+function bounceBtn(btn){
+  btn.classList.remove('btn-bounce');
+  void btn.offsetWidth;
+  btn.classList.add('btn-bounce');
+}
+
+const backBtn=document.getElementById('back-btn');
+const vsBtn=document.getElementById('vs-btn');
+const lobbyScreen=document.getElementById('lobby-screen');
+
+function returnToStart(){
+  isMulti=false;if(ws){try{ws.close();}catch(e){}}ws=null;
+  gameState='start';stopBgm();
+  document.getElementById('restart-btn').style.display='none';
+  backBtn.style.display='none';
+  lobbyScreen.style.display='none';
+  document.getElementById('start-btn').style.display='block';
+  vsBtn.style.display='block';
+  // reset lobby panels
+  document.getElementById('lobby-menu').style.display='block';
+  document.getElementById('lobby-wait').style.display='none';
+  document.getElementById('lobby-join').style.display='none';
+  playBgm('menu');
+}
+
+document.getElementById('start-btn').addEventListener('click',function(){
+  ensureAudio(); sfx('click');
+  if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
+  bounceBtn(this);
+  isMulti=false;
+  playBgm('menu');
+  setTimeout(()=>{
+    this.style.display='none';
+    vsBtn.style.display='none';
+    backBtn.style.display='block';
+    gameState='playing';resetGame();playBgm('game');sfx('start');
+  },650);
+});
+
+document.getElementById('restart-btn').addEventListener('click',function(){
+  ensureAudio(); sfx('click');
+  bounceBtn(this);
+  if(isMulti){
+    returnToStart();return;
+  }
+  setTimeout(()=>{
+    this.style.display='none';
+    backBtn.style.display='block';
+    gameState='playing';resetGame();playBgm('game');sfx('start');
+  },250);
+});
+
+backBtn.addEventListener('click',function(){
+  ensureAudio(); sfx('click');
+  if(isMulti){returnToStart();return;}
+  backBtn.style.display='none';
+  stopBgm();
+  gameState='start';
+  document.getElementById('start-btn').style.display='block';
+  vsBtn.style.display='block';
+  playBgm('menu');
+});
+
+// VS / Lobby buttons
+vsBtn.addEventListener('click',function(){
+  ensureAudio(); sfx('click');
+  if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
+  this.style.display='none';
+  document.getElementById('start-btn').style.display='none';
+  lobbyScreen.style.display='flex';
+  document.getElementById('lobby-menu').style.display='block';
+  document.getElementById('lobby-wait').style.display='none';
+  document.getElementById('lobby-join').style.display='none';
+});
+
+document.getElementById('create-room-btn').addEventListener('click',async function(){
+  sfx('click');
+  isMulti=true;isHost=true;
+  await connectWS();
+  sendWS({type:'create'});
+});
+
+document.getElementById('show-join-btn').addEventListener('click',function(){
+  sfx('click');
+  document.getElementById('lobby-menu').style.display='none';
+  document.getElementById('lobby-join').style.display='block';
+  document.getElementById('join-status').textContent='';
+  document.getElementById('room-code-input').value='';
+  document.getElementById('room-code-input').focus();
+});
+
+document.getElementById('join-confirm-btn').addEventListener('click',async function(){
+  sfx('click');
+  const code=document.getElementById('room-code-input').value.trim();
+  if(!code||code.length!==4){document.getElementById('join-status').textContent='请输入4位房间号';return;}
+  isMulti=true;isHost=false;
+  await connectWS();
+  sendWS({type:'join',code});
+});
+
+document.getElementById('lobby-back-btn').addEventListener('click',function(){
+  sfx('click');returnToStart();
+});
+document.getElementById('wait-back-btn').addEventListener('click',function(){
+  sfx('click');returnToStart();
+});
+document.getElementById('join-back-btn').addEventListener('click',function(){
+  sfx('click');
+  document.getElementById('lobby-join').style.display='none';
+  document.getElementById('lobby-menu').style.display='block';
+});
+
+document.getElementById('retry-btn').addEventListener('click',()=>{
+  ensureAudio(); sfx('click');
+  document.getElementById('camera-error').style.display='none';
+  initFaceTracking();
+});
+
+// ════════════════════════════════════════
+//  Boot
+// ════════════════════════════════════════
+async function boot(){
+  try{await loadAllImages();}catch(e){console.error('Image load:',e);}
+  try{await preRenderBgm();}catch(e){console.error('BGM render:',e);}
+  document.getElementById('loading-screen').style.display='none';
+  gameState='start';
+  document.getElementById('start-btn').style.display='block';
+  document.getElementById('vs-btn').style.display='block';
+  requestAnimationFrame(loop);
+
+  document.getElementById('game-wrapper').addEventListener('pointerdown',function startMenuBgm(){
+    if(gameState==='start'){ensureAudio();playBgm('menu');}
+  },{capture:true});
+
+  try{await initFaceTracking();}catch(e){console.error('FaceTrack:',e);}
+}
+boot();
+})();
+</script>
+</body>
+</html>
