@@ -638,15 +638,24 @@ async function preScaleBg(image) {
   }
 }
 
+let gameImagesLoaded = false;
+let gameImagesPromise = null;
+
 async function loadAllImages(){
-  const e=Object.entries(SRC);
-  await Promise.all(e.map(([k,s])=>loadImg(s).then(i=>{
-    const c=SPRITE_CFG[k];
-    img[k]=c?removeBg(i,c.s,c.m):i;
-  })));
-  for (const k of BG_KEYS) {
-    if (img[k]) img[k] = await preScaleBg(img[k]);
-  }
+  const startKeys = ['startBg'];
+  await Promise.all(startKeys.map(k=>loadImg(SRC[k]).then(i=>img[k]=i)));
+
+  gameImagesPromise = (async () => {
+    const keys = Object.keys(SRC).filter(k=>k!=='startBg');
+    await Promise.all(keys.map(k=>loadImg(SRC[k]).then(i=>{
+      const c=SPRITE_CFG[k];
+      img[k]=c?removeBg(i,c.s,c.m):i;
+    })));
+    for (const k of BG_KEYS) {
+      if (k!=='startBg' && img[k]) img[k] = await preScaleBg(img[k]);
+    }
+    gameImagesLoaded = true;
+  })();
 }
 
 // ════════════════════════════════════════
@@ -1280,7 +1289,12 @@ function updatePlaying(dt){
 function drawBg(bgImg,ox,oy){
   ctx.save();
   ctx.setTransform(1,0,0,1,(ox||0)*dpr,(oy||0)*dpr);
-  ctx.drawImage(bgImg,0,0);
+  if(bgImg){
+    ctx.drawImage(bgImg,0,0,W*dpr,H*dpr);
+  }else{
+    ctx.fillStyle='#0b1f3a';
+    ctx.fillRect(0,0,W*dpr,H*dpr);
+  }
   ctx.restore();
 }
 function renderStart(){drawBg(img.startBg);}
@@ -1452,6 +1466,11 @@ function returnToStart(){
 }
 
 document.getElementById('start-btn').addEventListener('click',async function(){
+  if(!gameImagesLoaded && gameImagesPromise){
+    this.style.opacity='0.5'; this.style.pointerEvents='none';
+    await gameImagesPromise;
+    this.style.opacity='1'; this.style.pointerEvents='auto';
+  }
   ensureAudio(); sfx('click');
   if(!cameraGranted || !faceTrackingStarted){
     const ok=await initFaceTracking(true);
@@ -1493,6 +1512,11 @@ backBtn.addEventListener('click',function(){
 });
 
 netBtn.addEventListener('click',async function(){
+  if(!gameImagesLoaded && gameImagesPromise){
+    this.style.opacity='0.5'; this.style.pointerEvents='none';
+    await gameImagesPromise;
+    this.style.opacity='1'; this.style.pointerEvents='auto';
+  }
   ensureAudio(); sfx('click');
   if(!cameraGranted || !faceTrackingStarted){
     const ok=await initFaceTracking(true);
@@ -1618,8 +1642,8 @@ document.getElementById('retry-btn').addEventListener('click',()=>{
 //  Boot
 // ════════════════════════════════════════
 async function boot(){
-  try{await loadAllImages();}catch(e){console.error('Image load:',e);}
-  try{await preRenderBgm();}catch(e){console.error('BGM render:',e);}
+  loadAllImages().catch(e=>console.error('Image load:',e));
+  preRenderBgm().catch(e=>console.error('BGM render:',e));
   document.getElementById('loading-screen').style.display='none';
   gameState='start';
   document.getElementById('start-btn').style.display='block';
