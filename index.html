@@ -669,6 +669,7 @@ let lastTickSec = -1, lastMilestone = 0;
 //  Multiplayer
 // ════════════════════════════════════════
 let isMulti=false, isHost=false, ws=null, syncAcc=0;
+let hostTargetX=640, guestTargetX=640;
 const SYNC_HZ=1/20;
 let remoteFace={noseX:0.5,mouthRatio:0,mouthWide:false,detected:false,lastSeen:0};
 let p2={catX:W/2,targetCatX:W/2,prevCatX:W/2,vel:0,lastMove:0,
@@ -1010,8 +1011,8 @@ function buildState(){
 }
 function applyState(s){
   timeLeft=s.tl;
-  catX=s.hx; p1ImgKey=s.hi; score=s.hs;
-  p2.catX=s.gx; p2.imgKey=s.gi; p2.score=s.gs;
+  hostTargetX=s.hx; p1ImgKey=s.hi; score=s.hs;
+  guestTargetX=s.gx; p2.imgKey=s.gi; p2.score=s.gs;
   fishes=s.f.map(([ti,x,y,bx,ph])=>({ft:FISH_TYPES[ti],x,y,baseX:bx,phase:ph}));
   floatingTexts=s.ft.map(([t,x,y,c,l,sc])=>({text:t,x,y,color:c,life:l,showCoin:!!sc}));
   shakeX=s.sx;shakeY=s.sy;
@@ -1149,6 +1150,20 @@ function resetGame(){
 // ════════════════════════════════════════
 //  Update
 // ════════════════════════════════════════
+function updateGuestVisuals(dt){
+  for(let i=fishes.length-1;i>=0;i--){
+    const f=fishes[i];
+    f.y+=f.ft.speed*dt;
+    if(f.ft.wave){f.phase+=dt*3.2;f.x=f.baseX+Math.sin(f.phase)*75;}
+  }
+  for(let i=floatingTexts.length-1;i>=0;i--){
+    floatingTexts[i].life-=dt;
+    floatingTexts[i].y-=40*dt;
+  }
+  catX+=(hostTargetX-catX)*Math.min(1,15*dt);
+  p2.catX+=(guestTargetX-p2.catX)*Math.min(1,15*dt);
+}
+
 function updatePlaying(dt){
   timeLeft=Math.max(0,60-(performance.now()-gameStartTime)/1000);
 
@@ -1388,6 +1403,7 @@ function loop(now){
     if(!isMulti||isHost){
       updatePlaying(dt);
     }else{
+      updateGuestVisuals(dt);
       if(faceTrackingStarted && ws && ws.readyState===1){
         const now2=performance.now();
         if(now2-lastFaceTx>=(1000/15)){
