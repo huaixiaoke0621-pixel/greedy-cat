@@ -625,6 +625,13 @@ function onFaceResults(r){
   mouthRatio=face.mouthRatio;
   mouthSlightlyOpen=face.mouthSlight;
   mouthOpenWide=face.mouthWide;
+  if(isMulti && !isHost && ws && ws.readyState===1){
+    const now=performance.now();
+    if(now-lastFaceTx>=(1000/15)){
+      lastFaceTx=now;
+      sendWS({type:'face',nx:faceNoseX,mr:mouthRatio,mw:mouthOpenWide,fd:faceDetected});
+    }
+  }
 }
 
 async function initFaceTracking(fromUserGesture){
@@ -1100,6 +1107,10 @@ function renderPlaying(){
     strokeText(scoreStr,startX,18,32,'#fff','#000','left');
     drawCoinIcon(startX+scoreW+6,34,coinSz);
   }
+
+  if(!isMulti && faceTrackingStarted && !faceDetected){
+    strokeText('请对准镜头',W/2,H-36,26,'#fff','rgba(0,0,0,0.85)','center','middle');
+  }
 }
 
 function renderEnd(){
@@ -1160,6 +1171,7 @@ function renderEnd(){
 //  Main Loop
 // ════════════════════════════════════════
 let prevTime=0, faceSendAcc=0;
+let lastFaceTx=0;
 function loop(now){
   const dt=prevTime?Math.min((now-prevTime)/1000,0.1):1/60;
   prevTime=now;
@@ -1169,10 +1181,12 @@ function loop(now){
     if(!isMulti||isHost){
       updatePlaying(dt);
     }else{
-      faceSendAcc+=dt;
-      if(faceSendAcc>=SYNC_HZ){
-        faceSendAcc-=SYNC_HZ;
-        sendWS({type:'face',nx:faceNoseX,mr:mouthRatio,mw:mouthOpenWide,fd:faceDetected});
+      if(faceTrackingStarted && ws && ws.readyState===1){
+        const now2=performance.now();
+        if(now2-lastFaceTx>=(1000/15)){
+          lastFaceTx=now2;
+          sendWS({type:'face',nx:faceNoseX,mr:mouthRatio,mw:mouthOpenWide,fd:faceDetected});
+        }
       }
     }
     if(gameState==='playing')renderPlaying();else renderEnd();
