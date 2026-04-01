@@ -54,6 +54,12 @@
     100% { transform: translate(-50%,-50%) scale(1); }
   }
   .btn-bounce { animation: btnBounce 0.35s ease; }
+  @keyframes pickBounce {
+    0% { transform: scale(0.91); }
+    50% { transform: scale(1.07); }
+    100% { transform: scale(1); }
+  }
+  .pick-bounce { animation: pickBounce 0.35s ease; }
 
   #camera-error {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
@@ -136,6 +142,88 @@
     justify-content: center; align-items: center;
     color: #fff; z-index: 50;
   }
+  #pick-overlay {
+    position: absolute; top:0; left:0; right:0; bottom:0;
+    background: rgba(8,24,52,0.88);
+    display: none; flex-direction: column;
+    justify-content: center; align-items: center;
+    z-index: 60;
+  }
+  .pick-box {
+    background: linear-gradient(145deg, #1a3a5c, #0d2744);
+    border: 3px solid rgba(100,180,255,0.25);
+    border-radius: 24px;
+    padding: 26px 34px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    width: 720px;
+  }
+  .pick-title { font-size: 26px; font-weight: 900; color:#FFD700; margin-bottom: 14px; }
+  .pick-sub { font-size: 15px; color: rgba(255,255,255,0.65); margin-bottom: 18px; }
+  .pick-row { display:flex; gap:26px; justify-content:center; align-items:center; }
+  .pick-card {
+    width: 280px;
+    border-radius: 22px;
+    padding: 18px 14px 14px;
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.15);
+    cursor: pointer;
+    transition: transform 0.16s cubic-bezier(.34,1.56,.64,1), border-color 0.16s, background 0.16s, opacity 0.16s;
+    user-select: none;
+  }
+  .pick-card:hover { transform: scale(1.04); border-color: rgba(255,255,255,0.32); }
+  .pick-card:active { transform: scale(0.94); }
+  .pick-card.selected { border-color: rgba(255,215,0,0.75); background: rgba(255,215,0,0.08); }
+  .pick-card.disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .pick-canvas {
+    width: 220px; height: 220px;
+    border-radius: 18px;
+    background: transparent;
+    filter:
+      drop-shadow(2px 0 0 rgba(0,0,0,0.95))
+      drop-shadow(-2px 0 0 rgba(0,0,0,0.95))
+      drop-shadow(0 2px 0 rgba(0,0,0,0.95))
+      drop-shadow(0 -2px 0 rgba(0,0,0,0.95));
+  }
+  .pick-label { margin-top: 10px; font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+  .pick-actions { margin-top: 18px; }
+  #pick-confirm {
+    padding: 12px 34px;
+    font-size: 18px;
+    font-weight: 900;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    color:#fff;
+    background: linear-gradient(135deg, #4ECDC4, #2196F3);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+    transition: transform 0.16s cubic-bezier(.34,1.56,.64,1);
+  }
+  #pick-confirm:hover { transform: scale(1.05); }
+  #pick-confirm:active { transform: scale(0.94); }
+  #pick-status { margin-top: 10px; font-size: 14px; color: rgba(255,255,255,0.7); min-height: 18px; }
+  #countdown-overlay{
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    display:none; justify-content:center; align-items:center;
+    z-index: 80;
+    pointer-events:none;
+  }
+  #countdown-bubble{
+    background: rgba(0,0,0,0.35);
+    border: 3px solid rgba(255,255,255,0.25);
+    border-radius: 28px;
+    padding: 22px 42px;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.45);
+    text-align:center;
+  }
+  #countdown-text{
+    font-size: 86px;
+    font-weight: 900;
+    color: #FFD700;
+    text-shadow: 0 10px 0 rgba(0,0,0,0.22);
+    letter-spacing: 2px;
+    line-height: 1;
+  }
   .lobby-box {
     background: linear-gradient(145deg, #1a3a5c, #0d2744);
     border: 3px solid rgba(100,180,255,0.25);
@@ -216,6 +304,29 @@
       <p class="lobby-info" id="join-status"></p>
       <button class="lobby-back" id="join-back-btn">← 返回</button>
     </div>
+  </div>
+  <div id="pick-overlay">
+    <div class="pick-box">
+      <div class="pick-title">选择你的猫</div>
+      <div class="pick-sub">点击一只猫，再点“确定”进入游戏</div>
+      <div class="pick-row">
+        <div class="pick-card" id="pick-cat1">
+          <canvas class="pick-canvas" id="pick-c1" width="220" height="220"></canvas>
+          <div class="pick-label">原猫</div>
+        </div>
+        <div class="pick-card" id="pick-cat2">
+          <canvas class="pick-canvas" id="pick-c2" width="220" height="220"></canvas>
+          <div class="pick-label">2号猫</div>
+        </div>
+      </div>
+      <div class="pick-actions">
+        <button id="pick-confirm">确定</button>
+        <div id="pick-status"></div>
+      </div>
+    </div>
+  </div>
+  <div id="countdown-overlay">
+    <div id="countdown-bubble"><div id="countdown-text">3</div></div>
   </div>
   <div id="camera-error">
     <p>需要摄像头权限才能玩游戏哦！<br>请允许浏览器访问您的摄像头</p>
@@ -434,6 +545,10 @@ function sfx(name) {
     case 'tick':
       playTone(1000,800,0.05,'square',0.08);
       break;
+    case 'count':
+      playTone(880,1320,0.09,'triangle',0.14);
+      setTimeout(()=>playTone(1047,1568,0.08,'triangle',0.11),70);
+      break;
   }
 }
 
@@ -560,7 +675,103 @@ let p2={catX:W/2,targetCatX:W/2,prevCatX:W/2,vel:0,lastMove:0,
   overState:null,overTimer:0,score:0,milestone:0,imgKey:'cat2Normal'};
 let p1ImgKey='catNormal';
 
+let hostSkin='cat1', guestSkin='cat2';
+let myPick='cat1', myPickLocked=false;
+let peerPick=null, peerPickLocked=false;
+let countdownEndAt=0, countdownTimer=null, lastCountdownShown=-1;
+
 function sendWS(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj));}
+
+function skinMap(s){
+  return s==='cat2' ? {
+    normal:'cat2Normal', lookUp:'cat2LookUp', open:'cat2Open', drool:'cat2Drool',
+    hurt:'cat2Hurt', happy:'cat2Happy', disgust:'cat2Disgust'
+  } : {
+    normal:'catNormal', lookUp:'catLookUp', open:'catOpen', drool:'catDrool',
+    hurt:'catHurt', happy:'catHappy', disgust:'catDisgust'
+  };
+}
+function catKeyByState(skin, overState, mouthWide, drool, idleFast){
+  const m=skinMap(skin);
+  if(overState==='hurt') return m.hurt;
+  if(overState==='disgust') return m.disgust;
+  if(overState==='happy') return m.happy;
+  if(mouthWide) return m.open;
+  if(drool) return m.drool;
+  if(idleFast) return m.lookUp;
+  return m.normal;
+}
+function showPickOverlay(){
+  const el=document.getElementById('pick-overlay');
+  if(el) el.style.display='flex';
+  drawPickPreviews();
+  updatePickUI();
+}
+function hidePickOverlay(){
+  const el=document.getElementById('pick-overlay');
+  if(el) el.style.display='none';
+}
+function setPickStatus(t){
+  const el=document.getElementById('pick-status');
+  if(el) el.textContent=t||'';
+}
+function drawPickPreviews(){
+  const c1=document.getElementById('pick-c1');
+  const c2=document.getElementById('pick-c2');
+  if(!c1||!c2) return;
+  const cx1=c1.getContext('2d');
+  const cx2=c2.getContext('2d');
+  cx1.clearRect(0,0,c1.width,c1.height);
+  cx2.clearRect(0,0,c2.width,c2.height);
+  const pad=8;
+  const w=c1.width-pad*2;
+  const h=c1.height-pad*2;
+  if(img.catNormal) cx1.drawImage(img.catNormal,pad,pad,w,h);
+  if(img.cat2Normal) cx2.drawImage(img.cat2Normal,pad,pad,w,h);
+}
+function updatePickUI(){
+  const a=document.getElementById('pick-cat1');
+  const b=document.getElementById('pick-cat2');
+  if(!a||!b) return;
+  const dis1=peerPickLocked && peerPick==='cat1' && myPick!=='cat1';
+  const dis2=peerPickLocked && peerPick==='cat2' && myPick!=='cat2';
+  a.classList.toggle('selected', myPick==='cat1');
+  b.classList.toggle('selected', myPick==='cat2');
+  a.classList.toggle('disabled', dis1);
+  b.classList.toggle('disabled', dis2);
+}
+function startCountdown(endAt){
+  countdownEndAt=endAt;
+  lastCountdownShown=-1;
+  const overlay=document.getElementById('countdown-overlay');
+  const txt=document.getElementById('countdown-text');
+  if(overlay) overlay.style.display='flex';
+  if(countdownTimer) clearInterval(countdownTimer);
+  countdownTimer=setInterval(()=>{
+    const leftMs=countdownEndAt-Date.now();
+    const sec=Math.ceil(leftMs/1000);
+    if(sec!==lastCountdownShown && sec>0){
+      lastCountdownShown=sec;
+      if(txt) txt.textContent=String(sec);
+      sfx('count');
+    }
+    if(leftMs<=0){
+      clearInterval(countdownTimer);
+      countdownTimer=null;
+      if(overlay) overlay.style.display='none';
+      beginOnlineGame();
+    }
+  },50);
+}
+function beginOnlineGame(){
+  hidePickOverlay();
+  document.getElementById('lobby-screen').style.display='none';
+  document.getElementById('back-btn').style.display='block';
+  gameState='playing';
+  resetGame();
+  playBgm('game');
+  sfx('start');
+}
 
 // ════════════════════════════════════════
 //  Drop Item Types
@@ -781,22 +992,12 @@ function isRainbowNearP2(){
   }return false;
 }
 function getCatImgKeyP2(){
-  if(p2.overState==='hurt')return'cat2Hurt';
-  if(p2.overState==='disgust')return'cat2Disgust';
-  if(p2.overState==='happy')return'cat2Happy';
-  if(remoteFace.mouthWide)return'cat2Open';
-  if(isRainbowNearP2())return'cat2Drool';
-  if((performance.now()-p2.lastMove)/1000<0.5)return'cat2LookUp';
-  return'cat2Normal';
+  const idleFast=(performance.now()-p2.lastMove)/1000<0.5;
+  return catKeyByState(guestSkin,p2.overState,remoteFace.mouthWide,isRainbowNearP2(),idleFast);
 }
 function getCatImgKey(){
-  if(catOverrideState==='hurt')return'catHurt';
-  if(catOverrideState==='disgust')return'catDisgust';
-  if(catOverrideState==='happy')return'catHappy';
-  if(mouthOpenWide)return'catOpen';
-  if(isRainbowNearby())return'catDrool';
-  if((performance.now()-lastMoveTime)/1000<0.5)return'catLookUp';
-  return'catNormal';
+  const idleFast=(performance.now()-lastMoveTime)/1000<0.5;
+  return catKeyByState(hostSkin,catOverrideState,mouthOpenWide,isRainbowNearby(),idleFast);
 }
 
 function buildState(){
@@ -819,17 +1020,37 @@ function applyState(s){
 function handleWsMsg(e){
   let m;try{m=JSON.parse(e.data);}catch{return;}
   if(m.type==='peer_joined'){
-    document.getElementById('wait-status').textContent='对手已加入！即将开始...';
-    setTimeout(()=>{
-      document.getElementById('lobby-screen').style.display='none';
-      document.getElementById('back-btn').style.display='block';
-      gameState='playing';resetGame();playBgm('game');sfx('start');
-      sendWS({type:'game_start'});
-    },800);
-  }else if(m.type==='game_start'){
-    document.getElementById('lobby-screen').style.display='none';
-    document.getElementById('back-btn').style.display='block';
-    gameState='playing';resetGame();playBgm('game');sfx('start');
+    document.getElementById('wait-status').textContent='对手已加入，请选择猫并点击确定';
+    peerPick=null; peerPickLocked=false; myPickLocked=false;
+    setPickStatus('等待双方选择...');
+    showPickOverlay();
+  }else if(m.type==='pick'){
+    peerPick=m.skin==='cat2'?'cat2':'cat1';
+    peerPickLocked=!!m.locked;
+    if(peerPickLocked && !myPickLocked && myPick===peerPick){
+      myPick=myPick==='cat1'?'cat2':'cat1';
+    }
+    updatePickUI();
+    if(peerPickLocked) setPickStatus('对手已选择，等待你点击确定');
+    if(isHost && myPickLocked && peerPickLocked){
+      hostSkin=myPick;
+      guestSkin=peerPick===hostSkin?(hostSkin==='cat1'?'cat2':'cat1'):peerPick;
+      sendWS({type:'pick_assign',skin:guestSkin});
+      const endAt=Date.now()+3000;
+      sendWS({type:'countdown',endAt});
+      hidePickOverlay();
+      startCountdown(endAt);
+    }
+  }else if(m.type==='pick_assign'){
+    myPick=m.skin==='cat2'?'cat2':'cat1';
+    myPickLocked=true;
+    peerPick=myPick==='cat1'?'cat2':'cat1';
+    peerPickLocked=true;
+    updatePickUI();
+    setPickStatus(myPick==='cat2'?'你是 2号猫':'你是 原猫');
+  }else if(m.type==='countdown'){
+    hidePickOverlay();
+    startCountdown(m.endAt|| (Date.now()+3000));
   }else if(m.type==='face'){
     if(typeof m.nx==='number') remoteFace.noseX=m.nx;
     if(typeof m.mr==='number') remoteFace.mouthRatio=m.mr;
@@ -867,12 +1088,19 @@ function handleWsMsg(e){
     document.getElementById('lobby-join').style.display='none';
     document.getElementById('lobby-wait').style.display='block';
     document.getElementById('room-code-show').textContent='已连接';
-    document.getElementById('wait-status').textContent='等待主机开始...';
+    document.getElementById('wait-status').textContent='已加入房间，请选择猫并点击确定';
+    peerPick=null; peerPickLocked=false; myPickLocked=false;
+    setPickStatus('等待双方选择...');
+    showPickOverlay();
   }else if(m.type==='created'){
     console.log('Room created:', m.code);
     document.getElementById('lobby-menu').style.display='none';
     document.getElementById('lobby-wait').style.display='block';
     document.getElementById('room-code-show').textContent=m.code;
+    document.getElementById('wait-status').textContent='等待对手加入后一起选择猫';
+    peerPick=null; peerPickLocked=false; myPickLocked=false;
+    setPickStatus('你可以先选好，等待对手加入');
+    showPickOverlay();
   }
 }
 
@@ -1190,6 +1418,12 @@ function returnToStart(){
   document.getElementById('restart-btn').style.display='none';
   backBtn.style.display='none';
   lobbyScreen.style.display='none';
+  hidePickOverlay();
+  const cd=document.getElementById('countdown-overlay');
+  if(cd) cd.style.display='none';
+  if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
+  peerPick=null; peerPickLocked=false; myPickLocked=false;
+  hostSkin='cat1'; guestSkin='cat2'; myPick='cat1';
   document.getElementById('start-btn').style.display='block';
   netBtn.style.display='block';
   // reset lobby panels
@@ -1253,6 +1487,40 @@ netBtn.addEventListener('click',async function(){
   document.getElementById('lobby-menu').style.display='block';
   document.getElementById('lobby-wait').style.display='none';
   document.getElementById('lobby-join').style.display='none';
+});
+
+function bouncePick(el){
+  el.classList.remove('pick-bounce');
+  void el.offsetWidth;
+  el.classList.add('pick-bounce');
+}
+document.getElementById('pick-cat1').addEventListener('click',function(){
+  if(this.classList.contains('disabled')) return;
+  myPick='cat1';
+  updatePickUI();
+  bouncePick(this);
+});
+document.getElementById('pick-cat2').addEventListener('click',function(){
+  if(this.classList.contains('disabled')) return;
+  myPick='cat2';
+  updatePickUI();
+  bouncePick(this);
+});
+document.getElementById('pick-confirm').addEventListener('click',function(){
+  ensureAudio(); sfx('click');
+  myPickLocked=true;
+  updatePickUI();
+  setPickStatus('已选择，等待对手...');
+  sendWS({type:'pick',skin:myPick,locked:true});
+  if(isHost && peerPickLocked){
+    hostSkin=myPick;
+    guestSkin=peerPick===hostSkin?(hostSkin==='cat1'?'cat2':'cat1'):peerPick;
+    sendWS({type:'pick_assign',skin:guestSkin});
+    const endAt=Date.now()+3000;
+    sendWS({type:'countdown',endAt});
+    hidePickOverlay();
+    startCountdown(endAt);
+  }
 });
 
 document.getElementById('room-code-show').addEventListener('click', async function(){
