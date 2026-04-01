@@ -33,6 +33,18 @@
     left: 49.3%; top: 83.7%;
     transform: translate(-50%, -50%);
     width: 300px; height: 90px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 30px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 2px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.92), rgba(255, 192, 72, 0.92));
+    border: 2px solid rgba(255,255,255,0.5);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.25);
   }
   #start-btn:hover { transform: translate(-50%, -50%) scale(1.06); }
   #start-btn:active { transform: translate(-50%, -50%) scale(0.92); }
@@ -115,20 +127,8 @@
       inset 0 2px 6px rgba(0,0,0,0.15);
     transition: transform 0.06s;
   }
-  #vs-btn {
-    left: 49.3%; top: 90%;
-    transform: translate(-50%, -50%);
-    width: 180px; height: 48px;
-    background: linear-gradient(135deg, #4ECDC4, #2196F3) !important;
-    border-radius: 16px; color: #fff; font-size: 18px; font-weight: bold;
-    border: 2px solid rgba(255,255,255,0.4);
-    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  }
-  #vs-btn:hover { transform: translate(-50%,-50%) scale(1.08); }
-  #vs-btn:active { transform: translate(-50%,-50%) scale(0.92); }
   #net-btn {
-    left: 49.3%; top: 96%;
+    left: 49.3%; top: 93%;
     transform: translate(-50%, -50%);
     width: 180px; height: 48px;
     background: linear-gradient(135deg, #FF9F43, #EE5A24) !important;
@@ -200,8 +200,7 @@
 <body>
 <div id="game-wrapper">
   <canvas id="gameCanvas" width="1280" height="720"></canvas>
-  <button id="start-btn" class="overlay-btn" style="display:none;"></button>
-  <button id="vs-btn" class="overlay-btn" style="display:none;">双人同屏</button>
+  <button id="start-btn" class="overlay-btn" style="display:none;">单人模式</button>
   <button id="net-btn" class="overlay-btn" style="display:none;">在线对战</button>
   <button id="restart-btn" class="overlay-btn" style="display:none;"></button>
   <button id="back-btn" style="display:none;">🏠</button>
@@ -261,6 +260,18 @@ let audioCtx = null;
 function ensureAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function setCameraError(html){
+  const box=document.getElementById('camera-error');
+  const p=box.querySelector('p');
+  if(p) p.innerHTML=html;
+  box.style.display='flex';
+}
+
+function hideCameraError(){
+  const box=document.getElementById('camera-error');
+  box.style.display='none';
 }
 
 function playTone(freq, freq2, dur, type, vol) {
@@ -539,15 +550,16 @@ const CAT_SIZE=250, CAT_Y=H-CAT_SIZE*0.38;
 let catOverrideState=null, catOverrideTimer=0;
 let mouthOpenWide=false, mouthSlightlyOpen=false, mouthRatio=0;
 let faceNoseX=0.5, faceDetected=false, cameraGranted=false;
+let faceTrackingStarted=false, faceStream=null;
 let shakeX=0, shakeY=0, shakeRemaining=0;
 let lastTickSec = -1, lastMilestone = 0;
 
 // ════════════════════════════════════════
 //  Multiplayer
 // ════════════════════════════════════════
-let isMulti=false, isHost=false, ws=null, syncAcc=0, localDualMode=false;
+let isMulti=false, isHost=false, ws=null, syncAcc=0;
 const SYNC_HZ=1/20;
-let remoteFace={noseX:0.5,mouthRatio:0,mouthWide:false,detected:false};
+let remoteFace={noseX:0.5,mouthRatio:0,mouthWide:false,detected:false,lastSeen:0};
 let p2={catX:W/2,targetCatX:W/2,prevCatX:W/2,vel:0,lastMove:0,
   overState:null,overTimer:0,score:0,milestone:0,imgKey:'catNormal'};
 let p1ImgKey='catNormal';
@@ -601,72 +613,76 @@ function faceToMetrics(lm){
   const mr=ed>0.001?md/ed:0;
   return {noseX,mouthRatio:mr,mouthWide:mr>=0.22,mouthSlight:mr>=0.15,detected:true};
 }
-function pickClosestFace(faces,targetX){
-  if(!faces.length)return null;
-  let bi=0,bd=Math.abs(faces[0].noseX-targetX);
-  for(let i=1;i<faces.length;i++){
-    const d=Math.abs(faces[i].noseX-targetX);
-    if(d<bd){bd=d;bi=i;}
-  }
-  return faces[bi];
-}
 function onFaceResults(r){
   const lms=r.multiFaceLandmarks||[];
   if(lms.length===0){
     faceDetected=false;
-    if(localDualMode&&isMulti)remoteFace.detected=false;
     return;
   }
-  const faces=lms.map(faceToMetrics);
-  if(localDualMode&&isMulti){
-    const sorted=faces.slice().sort((a,b)=>a.noseX-b.noseX);
-    const f1=sorted[0];
-    faceDetected=!!f1;
-    if(f1){
-      faceNoseX=f1.noseX;
-      mouthRatio=f1.mouthRatio;
-      mouthSlightlyOpen=f1.mouthSlight;
-      mouthOpenWide=f1.mouthWide;
-    }
-    const f2=sorted[1];
-    if(f2){
-      remoteFace.noseX=f2.noseX;
-      remoteFace.mouthRatio=f2.mouthRatio;
-      remoteFace.mouthWide=f2.mouthWide;
-      remoteFace.detected=true;
-    }else{
-      remoteFace.detected=false;
-    }
-    return;
-  }
-  const mainFace=pickClosestFace(faces,faceNoseX);
-  if(mainFace){
-    faceDetected=true;
-    faceNoseX=mainFace.noseX;
-    mouthRatio=mainFace.mouthRatio;
-    mouthSlightlyOpen=mainFace.mouthSlight;
-    mouthOpenWide=mainFace.mouthWide;
-  }else{
-    faceDetected=false;
-  }
+  const face=faceToMetrics(lms[0]);
+  faceDetected=true;
+  faceNoseX=face.noseX;
+  mouthRatio=face.mouthRatio;
+  mouthSlightlyOpen=face.mouthSlight;
+  mouthOpenWide=face.mouthWide;
 }
 
-async function initFaceTracking(){
+async function initFaceTracking(fromUserGesture){
+  if(faceTrackingStarted) return true;
   const v=document.getElementById('webcam');
+  v.muted = true;
   try{
-    const s=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}});
-    v.srcObject=s; await v.play(); cameraGranted=true;
+    if(location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+      setCameraError('需要在 HTTPS 环境下才能打开摄像头。<br>请用云端 https 链接访问，或在本机使用 http://localhost 打开');
+      return false;
+    }
+    if(!faceStream){
+      const s=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:480},height:{ideal:360},facingMode:'user'}});
+      faceStream=s;
+    }
+    v.srcObject=faceStream;
+    cameraGranted=!!faceStream;
+    hideCameraError();
+    if(fromUserGesture){
+      try{await v.play();}catch(e){}
+    }else{
+      v.play().catch(()=>{});
+    }
   }catch(e){
-    document.getElementById('camera-error').style.display='flex';return;
+    const msg = (e && e.name) ? e.name : 'UnknownError';
+    setCameraError(`需要摄像头权限才能玩游戏哦！<br>请允许浏览器访问您的摄像头<br><span style="font-size:14px;opacity:0.75;">${msg}</span>`);
+    return false;
   }
   try{
-    if(typeof FaceMesh==='undefined')return;
+    if(typeof FaceMesh==='undefined'){
+      setCameraError('人脸识别模块加载失败。<br>请刷新页面或检查网络后重试');
+      return false;
+    }
     const fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
-    fm.setOptions({maxNumFaces:2,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    fm.setOptions({maxNumFaces:1,refineLandmarks:false,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
     fm.onResults(onFaceResults);
-    async function loop(){if(v.readyState>=2){try{await fm.send({image:v});}catch(e){}}requestAnimationFrame(loop);}
-    loop();
+    let sendErrorShown=false;
+    const FRAME_MS=1000/15;
+    let lastTs=0;
+    faceTrackingStarted=true;
+    async function loop(now){
+      if(v.readyState>=2 && (now-lastTs)>=FRAME_MS){
+        lastTs=now;
+        try{await fm.send({image:v});}
+        catch(e){
+          if(!sendErrorShown){
+            sendErrorShown=true;
+            console.error('FaceMesh send error:',e);
+            setCameraError('人脸识别运行失败。<br>请刷新页面或稍后重试');
+          }
+        }
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+    return true;
   }catch(e){console.error('FaceMesh error:',e);}
+  return false;
 }
 
 // ════════════════════════════════════════
@@ -812,8 +828,11 @@ function handleWsMsg(e){
     document.getElementById('back-btn').style.display='block';
     gameState='playing';resetGame();playBgm('game');sfx('start');
   }else if(m.type==='face'){
-    remoteFace.noseX=m.nx;remoteFace.mouthRatio=m.mr;
-    remoteFace.mouthWide=m.mw;remoteFace.detected=m.fd;
+    if(typeof m.nx==='number') remoteFace.noseX=m.nx;
+    if(typeof m.mr==='number') remoteFace.mouthRatio=m.mr;
+    remoteFace.mouthWide=(typeof m.mw==='boolean')?m.mw:(remoteFace.mouthRatio>=0.22);
+    remoteFace.detected=(typeof m.fd==='boolean')?m.fd:true;
+    remoteFace.lastSeen=performance.now();
   }else if(m.type==='state'){
     applyState(m);
     if(m.tl<=0&&gameState==='playing'){
@@ -837,7 +856,6 @@ function handleWsMsg(e){
     document.getElementById('back-btn').style.display='none';
     document.getElementById('restart-btn').style.display='none';
     document.getElementById('start-btn').style.display='block';
-    document.getElementById('vs-btn').style.display='block';
     document.getElementById('net-btn').style.display='block';
     stopBgm();
   }else if(m.type==='error'){
@@ -859,12 +877,11 @@ function connectWS(){
   return new Promise((resolve, reject) => {
     if (ws && ws.readyState === 1) return resolve();
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const host = location.host || 'localhost:3000'; // Fallback for file:// or empty host
+    const host = location.host || 'localhost:3000';
     try {
       ws = new WebSocket(`${proto}://${host}`);
       ws.onmessage = handleWsMsg;
       ws.onopen = () => {
-        console.log('WebSocket connected');
         resolve();
       };
       ws.onerror = (err) => {
@@ -872,7 +889,6 @@ function connectWS(){
         alert('无法连接服务器，请确保已在终端运行 npm start');
         reject(err);
       };
-      // Timeout after 5 seconds
       setTimeout(() => {
         if (ws.readyState !== 1) {
           reject(new Error('Connection timeout'));
@@ -977,7 +993,8 @@ function updatePlaying(dt){
 
   // P2 cat movement (multiplayer host only)
   if(isMulti&&isHost){
-    if(remoteFace.detected){
+    const remoteActive=remoteFace.lastSeen&&((performance.now()-remoteFace.lastSeen)<800);
+    if(remoteActive){
       p2.targetCatX=W/2+(remoteFace.noseX-0.5)*W*1.5;
       p2.targetCatX=Math.max(CAT_SIZE/2,Math.min(W-CAT_SIZE/2,p2.targetCatX));
     }
@@ -1088,29 +1105,53 @@ function renderPlaying(){
 function renderEnd(){
   drawBg(img.endBg);
   const px=636, py=352;
+  function draw3D(text,x,y,size,fill,stroke,depthFill,align){
+    ctx.save();
+    ctx.font=`900 ${size}px 'Microsoft YaHei','PingFang SC',sans-serif`;
+    ctx.textAlign=align||'center';
+    ctx.textBaseline='middle';
+    ctx.lineJoin='round';
+    const dx=2,dy=2;
+    for(let i=7;i>=1;i--){
+      ctx.fillStyle=depthFill;
+      ctx.fillText(text,x+i*dx,y+i*dy);
+    }
+    ctx.lineWidth=8;
+    ctx.strokeStyle=stroke;
+    ctx.strokeText(text,x,y);
+    ctx.fillStyle=fill;
+    ctx.fillText(text,x,y);
+    ctx.restore();
+  }
   if(isMulti){
     const s1=Math.max(0,score),s2=Math.max(0,p2.score);
-    let winner=s1>s2?'P1 胜利!':s2>s1?'P2 胜利!':'平局!';
-    strokeText(winner,px,py-50,42,'#FFD700','#5C3A1E','center','middle');
-    // P1
-    strokeText('P1: '+s1,px,py+10,36,'#4FC3F7','#0D47A1','center','middle');
-    ctx.font='bold 36px Microsoft YaHei';
-    const sw1=ctx.measureText('P1: '+s1).width;
-    drawCoinIcon(px+sw1/2+6,py+10,40,{color:'rgba(90,55,10,0.4)',blur:8,ox:2,oy:3});
-    // P2
-    strokeText('P2: '+s2,px,py+60,36,'#FF8A65','#BF360C','center','middle');
-    ctx.font='bold 36px Microsoft YaHei';
-    const sw2=ctx.measureText('P2: '+s2).width;
-    drawCoinIcon(px+sw2/2+6,py+60,40,{color:'rgba(90,55,10,0.4)',blur:8,ox:2,oy:3});
+    let winner=s1>s2?'1 胜利!':s2>s1?'2 胜利!':'平局!';
+    draw3D(winner,px,py-70,54,'#FFD700','#5C3A1E','rgba(110,60,10,0.75)','center');
+
+    const y=py+30;
+    const left=`1: ${s1}`;
+    const right=`2: ${s2}`;
+    ctx.font=`900 42px 'Microsoft YaHei','PingFang SC',sans-serif`;
+    const lw=ctx.measureText(left).width;
+    const rw=ctx.measureText(right).width;
+    const gap=70;
+    const total=lw+rw+gap+84;
+    const start=px-total/2;
+    const lx=start;
+    const rx=start+lw+gap+42;
+    draw3D(left,lx,y,42,'#4FC3F7','#0D47A1','rgba(10,45,120,0.75)','left');
+    drawCoinIcon(lx+lw+10,y,42,{color:'rgba(20,20,20,0.35)',blur:10,ox:2,oy:4});
+    draw3D(right,rx,y,42,'#FF8A65','#BF360C','rgba(120,40,10,0.75)','left');
+    drawCoinIcon(rx+rw+10,y,42,{color:'rgba(20,20,20,0.35)',blur:10,ox:2,oy:4});
   }else{
     const ds=Math.max(0,score);
     const scoreStr=String(ds);
-    ctx.font='bold 60px Microsoft YaHei';
+    ctx.font=`900 70px 'Microsoft YaHei','PingFang SC',sans-serif`;
     const sw=ctx.measureText(scoreStr).width;
     const coinSz=64;
     const totalW=sw+coinSz+12;
     const sx=px-totalW/2;
-    strokeText(scoreStr,sx,py,60,'#5C3A1E','#D4A96A','left','middle');
+    draw3D(scoreStr,sx,py,70,'#FFD700','#5C3A1E','rgba(110,60,10,0.75)','left');
     drawCoinIcon(sx+sw+12,py,coinSz,{color:'rgba(90,55,10,0.45)',blur:10,ox:3,oy:5});
   }
 }
@@ -1123,8 +1164,6 @@ function loop(now){
   const dt=prevTime?Math.min((now-prevTime)/1000,0.1):1/60;
   prevTime=now;
   ctx.clearRect(0,0,W,H);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
   if(gameState==='start') renderStart();
   else if(gameState==='playing'){
     if(!isMulti||isHost){
@@ -1151,19 +1190,16 @@ function bounceBtn(btn){
 }
 
 const backBtn=document.getElementById('back-btn');
-const vsBtn=document.getElementById('vs-btn');
 const netBtn=document.getElementById('net-btn');
 const lobbyScreen=document.getElementById('lobby-screen');
 
 function returnToStart(){
-  localDualMode=false;
   isMulti=false;if(ws){try{ws.close();}catch(e){}}ws=null;
   gameState='start';stopBgm();
   document.getElementById('restart-btn').style.display='none';
   backBtn.style.display='none';
   lobbyScreen.style.display='none';
   document.getElementById('start-btn').style.display='block';
-  vsBtn.style.display='block';
   netBtn.style.display='block';
   // reset lobby panels
   document.getElementById('lobby-menu').style.display='block';
@@ -1172,16 +1208,17 @@ function returnToStart(){
   playBgm('menu');
 }
 
-document.getElementById('start-btn').addEventListener('click',function(){
+document.getElementById('start-btn').addEventListener('click',async function(){
   ensureAudio(); sfx('click');
-  if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
+  if(!cameraGranted || !faceTrackingStarted){
+    const ok=await initFaceTracking(true);
+    if(!ok) return;
+  }
   bounceBtn(this);
-  localDualMode=false;
   isMulti=false;
   playBgm('menu');
   setTimeout(()=>{
     this.style.display='none';
-    vsBtn.style.display='none';
     netBtn.style.display='none';
     backBtn.style.display='block';
     gameState='playing';resetGame();playBgm('game');sfx('start');
@@ -1208,37 +1245,18 @@ backBtn.addEventListener('click',function(){
   stopBgm();
   gameState='start';
   document.getElementById('start-btn').style.display='block';
-  vsBtn.style.display='block';
   netBtn.style.display='block';
   playBgm('menu');
 });
 
-// VS / Lobby buttons
-vsBtn.addEventListener('click',function(){
+netBtn.addEventListener('click',async function(){
   ensureAudio(); sfx('click');
-  if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
+  if(!cameraGranted || !faceTrackingStarted){
+    const ok=await initFaceTracking(true);
+    if(!ok) return;
+  }
   bounceBtn(this);
-  localDualMode=true;
-  isMulti=true;
-  isHost=true;
   this.style.display='none';
-  document.getElementById('start-btn').style.display='none';
-  netBtn.style.display='none';
-  lobbyScreen.style.display='none';
-  backBtn.style.display='block';
-  gameState='playing';
-  resetGame();
-  playBgm('game');
-  sfx('start');
-});
-
-netBtn.addEventListener('click',function(){
-  ensureAudio(); sfx('click');
-  if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
-  bounceBtn(this);
-  localDualMode=false;
-  this.style.display='none';
-  vsBtn.style.display='none';
   document.getElementById('start-btn').style.display='none';
   lobbyScreen.style.display='flex';
   document.getElementById('lobby-menu').style.display='block';
@@ -1315,8 +1333,8 @@ document.getElementById('join-back-btn').addEventListener('click',function(){
 
 document.getElementById('retry-btn').addEventListener('click',()=>{
   ensureAudio(); sfx('click');
-  document.getElementById('camera-error').style.display='none';
-  initFaceTracking();
+  hideCameraError();
+  initFaceTracking(true);
 });
 
 // ════════════════════════════════════════
@@ -1328,7 +1346,6 @@ async function boot(){
   document.getElementById('loading-screen').style.display='none';
   gameState='start';
   document.getElementById('start-btn').style.display='block';
-  document.getElementById('vs-btn').style.display='block';
   document.getElementById('net-btn').style.display='block';
   requestAnimationFrame(loop);
 
@@ -1336,7 +1353,7 @@ async function boot(){
     if(gameState==='start'){ensureAudio();playBgm('menu');}
   },{capture:true});
 
-  try{await initFaceTracking();}catch(e){console.error('FaceTrack:',e);}
+  // face tracking starts on user interaction (single / online)
 }
 boot();
 })();
