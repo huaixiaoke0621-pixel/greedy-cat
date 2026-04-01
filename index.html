@@ -30,24 +30,15 @@
   }
 
   #start-btn {
-    left: 49.3%; top: 83.7%;
+    left: 36%; top: 86%;
     transform: translate(-50%, -50%);
-    width: 300px; height: 90px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 30px;
-    font-weight: 900;
-    color: #fff;
-    letter-spacing: 2px;
-    border-radius: 22px;
-    background: linear-gradient(135deg, rgba(255, 107, 53, 0.92), rgba(255, 192, 72, 0.92));
-    border: 2px solid rgba(255,255,255,0.5);
-    box-shadow: 0 10px 22px rgba(0,0,0,0.35);
-    text-shadow: 0 2px 0 rgba(0,0,0,0.25);
+    width: 260px; height: 82px;
+    background: url('assets/单人模式按钮.png') center/contain no-repeat;
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,0.32));
+    font-size: 0;
   }
   #start-btn:hover { transform: translate(-50%, -50%) scale(1.06); }
-  #start-btn:active { transform: translate(-50%, -50%) scale(0.92); }
+  #start-btn:active { transform: translate(-50%, -50%) scale(0.92); filter: drop-shadow(0 5px 10px rgba(0,0,0,0.28)) brightness(0.98); }
 
   #restart-btn {
     left: 42%; top: 75%;
@@ -128,17 +119,15 @@
     transition: transform 0.06s;
   }
   #net-btn {
-    left: 49.3%; top: 93%;
+    left: 64%; top: 86%;
     transform: translate(-50%, -50%);
-    width: 180px; height: 48px;
-    background: linear-gradient(135deg, #FF9F43, #EE5A24) !important;
-    border-radius: 16px; color: #fff; font-size: 18px; font-weight: bold;
-    border: 2px solid rgba(255,255,255,0.4);
-    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    width: 260px; height: 82px;
+    background: url('assets/双人模式按钮.png') center/contain no-repeat;
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,0.32));
+    font-size: 0;
   }
   #net-btn:hover { transform: translate(-50%,-50%) scale(1.08); }
-  #net-btn:active { transform: translate(-50%,-50%) scale(0.92); }
+  #net-btn:active { transform: translate(-50%,-50%) scale(0.92); filter: drop-shadow(0 5px 10px rgba(0,0,0,0.28)) brightness(0.98); }
 
   #lobby-screen {
     position: absolute; top:0; left:0; right:0; bottom:0;
@@ -200,8 +189,8 @@
 <body>
 <div id="game-wrapper">
   <canvas id="gameCanvas" width="1280" height="720"></canvas>
-  <button id="start-btn" class="overlay-btn" style="display:none;">单人模式</button>
-  <button id="net-btn" class="overlay-btn" style="display:none;">在线对战</button>
+  <button id="start-btn" class="overlay-btn" style="display:none;"></button>
+  <button id="net-btn" class="overlay-btn" style="display:none;"></button>
   <button id="restart-btn" class="overlay-btn" style="display:none;"></button>
   <button id="back-btn" style="display:none;">🏠</button>
 
@@ -492,6 +481,10 @@ const SRC = {
   catOpen:'assets/张大嘴.png', catEat:'assets/仰头.png',
   catDrool:'assets/流口水.png', catHurt:'assets/受伤.png',
   catHappy:'assets/开心.png', catDisgust:'assets/恶心.png',
+  cat2Normal:'assets/2号猫正常状态png.png', cat2LookUp:'assets/2号猫向上看.png',
+  cat2Open:'assets/2号猫张大嘴.png', cat2Eat:'assets/2号猫仰头.png',
+  cat2Drool:'assets/2号猫流口水.png', cat2Hurt:'assets/2号猫受伤.png',
+  cat2Happy:'assets/2号猫开心.png', cat2Disgust:'assets/2号猫恶心.png',
   fishBlue:'assets/小蓝鱼.png', fishGreen:'assets/小绿鱼.png',
   fishRed:'assets/小红鱼.png', fishRainbow:'assets/彩虹鱼.png',
   puffer:'assets/河豚.png', turtle:'assets/小乌龟.png',
@@ -502,6 +495,9 @@ const SPRITE_CFG = {
   catNormal:{s:512,m:'black'}, catLookUp:{s:512,m:'black'}, catOpen:{s:512,m:'black'},
   catEat:{s:512,m:'black'}, catDrool:{s:512,m:'black'}, catHurt:{s:512,m:'black'},
   catHappy:{s:512,m:'none'}, catDisgust:{s:512,m:'none'},
+  cat2Normal:{s:512,m:'black'}, cat2LookUp:{s:512,m:'black'}, cat2Open:{s:512,m:'black'},
+  cat2Eat:{s:512,m:'black'}, cat2Drool:{s:512,m:'black'}, cat2Hurt:{s:512,m:'black'},
+  cat2Happy:{s:512,m:'none'}, cat2Disgust:{s:512,m:'none'},
   fishBlue:{s:160,m:'black'}, fishGreen:{s:160,m:'black'},
   fishRed:{s:160,m:'black'}, fishRainbow:{s:300,m:'black'},
   puffer:{s:220,m:'black'},
@@ -561,7 +557,7 @@ let isMulti=false, isHost=false, ws=null, syncAcc=0;
 const SYNC_HZ=1/20;
 let remoteFace={noseX:0.5,mouthRatio:0,mouthWide:false,detected:false,lastSeen:0};
 let p2={catX:W/2,targetCatX:W/2,prevCatX:W/2,vel:0,lastMove:0,
-  overState:null,overTimer:0,score:0,milestone:0,imgKey:'catNormal'};
+  overState:null,overTimer:0,score:0,milestone:0,imgKey:'cat2Normal'};
 let p1ImgKey='catNormal';
 
 function sendWS(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj));}
@@ -785,13 +781,13 @@ function isRainbowNearP2(){
   }return false;
 }
 function getCatImgKeyP2(){
-  if(p2.overState==='hurt')return'catHurt';
-  if(p2.overState==='disgust')return'catDisgust';
-  if(p2.overState==='happy')return'catHappy';
-  if(remoteFace.mouthWide)return'catOpen';
-  if(isRainbowNearP2())return'catDrool';
-  if((performance.now()-p2.lastMove)/1000<0.5)return'catLookUp';
-  return'catNormal';
+  if(p2.overState==='hurt')return'cat2Hurt';
+  if(p2.overState==='disgust')return'cat2Disgust';
+  if(p2.overState==='happy')return'cat2Happy';
+  if(remoteFace.mouthWide)return'cat2Open';
+  if(isRainbowNearP2())return'cat2Drool';
+  if((performance.now()-p2.lastMove)/1000<0.5)return'cat2LookUp';
+  return'cat2Normal';
 }
 function getCatImgKey(){
   if(catOverrideState==='hurt')return'catHurt';
@@ -1116,54 +1112,35 @@ function renderPlaying(){
 function renderEnd(){
   drawBg(img.endBg);
   const px=636, py=352;
-  function draw3D(text,x,y,size,fill,stroke,depthFill,align){
+  function drawCute(text,x,y,size,fill,stroke,align){
     ctx.save();
     ctx.font=`900 ${size}px 'Microsoft YaHei','PingFang SC',sans-serif`;
     ctx.textAlign=align||'center';
     ctx.textBaseline='middle';
     ctx.lineJoin='round';
-    const dx=2,dy=2;
-    for(let i=7;i>=1;i--){
-      ctx.fillStyle=depthFill;
-      ctx.fillText(text,x+i*dx,y+i*dy);
-    }
-    ctx.lineWidth=8;
+    ctx.shadowColor='rgba(0,0,0,0.22)';
+    ctx.shadowBlur=12;
+    ctx.shadowOffsetX=0;
+    ctx.shadowOffsetY=6;
+    ctx.lineWidth=10;
     ctx.strokeStyle=stroke;
     ctx.strokeText(text,x,y);
+    ctx.shadowColor='transparent';
+    ctx.shadowBlur=0;
     ctx.fillStyle=fill;
     ctx.fillText(text,x,y);
     ctx.restore();
   }
   if(isMulti){
     const s1=Math.max(0,score),s2=Math.max(0,p2.score);
-    let winner=s1>s2?'1 胜利!':s2>s1?'2 胜利!':'平局!';
-    draw3D(winner,px,py-70,54,'#FFD700','#5C3A1E','rgba(110,60,10,0.75)','center');
-
-    const y=py+30;
-    const left=`1: ${s1}`;
-    const right=`2: ${s2}`;
-    ctx.font=`900 42px 'Microsoft YaHei','PingFang SC',sans-serif`;
-    const lw=ctx.measureText(left).width;
-    const rw=ctx.measureText(right).width;
-    const gap=70;
-    const total=lw+rw+gap+84;
-    const start=px-total/2;
-    const lx=start;
-    const rx=start+lw+gap+42;
-    draw3D(left,lx,y,42,'#4FC3F7','#0D47A1','rgba(10,45,120,0.75)','left');
-    drawCoinIcon(lx+lw+10,y,42,{color:'rgba(20,20,20,0.35)',blur:10,ox:2,oy:4});
-    draw3D(right,rx,y,42,'#FF8A65','#BF360C','rgba(120,40,10,0.75)','left');
-    drawCoinIcon(rx+rw+10,y,42,{color:'rgba(20,20,20,0.35)',blur:10,ox:2,oy:4});
+    let winner=s1>s2?'1号胜利':s2>s1?'2号胜利':'平局';
+    drawCute(winner,px,py-12,64,'#FFD700','#7A3E00','center');
+    const scoreLine=`1号 ${s1}    2号 ${s2}`;
+    drawCute(scoreLine,px,py+48,28,'#FFFFFF','#00324A','center');
   }else{
     const ds=Math.max(0,score);
-    const scoreStr=String(ds);
-    ctx.font=`900 70px 'Microsoft YaHei','PingFang SC',sans-serif`;
-    const sw=ctx.measureText(scoreStr).width;
-    const coinSz=64;
-    const totalW=sw+coinSz+12;
-    const sx=px-totalW/2;
-    draw3D(scoreStr,sx,py,70,'#FFD700','#5C3A1E','rgba(110,60,10,0.75)','left');
-    drawCoinIcon(sx+sw+12,py,coinSz,{color:'rgba(90,55,10,0.45)',blur:10,ox:3,oy:5});
+    drawCute('得分',px,py-18,54,'#FFD700','#7A3E00','center');
+    drawCute(String(ds),px,py+44,44,'#FFFFFF','#00324A','center');
   }
 }
 
