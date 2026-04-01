@@ -1097,10 +1097,12 @@ function handleWsMsg(e){
     document.getElementById('lobby-menu').style.display='none';
     document.getElementById('lobby-wait').style.display='block';
     document.getElementById('room-code-show').textContent=m.code;
-    document.getElementById('wait-status').textContent='等待对手加入后一起选择猫';
-    peerPick=null; peerPickLocked=false; myPickLocked=false;
-    setPickStatus('你可以先选好，等待对手加入');
-    showPickOverlay();
+    document.getElementById('wait-status').textContent='等待对手加入...';
+    peerPick=null; peerPickLocked=false; myPickLocked=false; myPick='cat1';
+    peerPick=null; peerPickLocked=false;
+    hostSkin='cat1'; guestSkin='cat2';
+    setPickStatus('');
+    hidePickOverlay();
   }
 }
 
