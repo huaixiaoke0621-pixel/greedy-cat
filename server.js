@@ -16,20 +16,24 @@ function genCode() {
 }
 
 wss.on('connection', ws => {
+  console.log('New connection established');
   ws.alive = true;
   ws.on('pong', () => { ws.alive = true; });
 
   ws.on('message', raw => {
     const str = raw.toString();
+    console.log('Received message:', str);
     let msg;
     try { msg = JSON.parse(str); } catch { return; }
 
     if (msg.type === 'create') {
       const code = genCode();
+      console.log('Creating room:', code);
       rooms.set(code, { host: ws, guest: null });
       ws.room = code; ws.role = 'host';
       ws.send(JSON.stringify({ type: 'created', code }));
     } else if (msg.type === 'join') {
+      console.log('Joining room:', msg.code);
       const room = rooms.get(msg.code);
       if (!room) return ws.send(JSON.stringify({ type: 'error', msg: '房间不存在' }));
       if (room.guest) return ws.send(JSON.stringify({ type: 'error', msg: '房间已满' }));
@@ -45,6 +49,7 @@ wss.on('connection', ws => {
   });
 
   ws.on('close', () => {
+    console.log('Connection closed');
     if (!ws.room) return;
     const room = rooms.get(ws.room);
     if (!room) return;

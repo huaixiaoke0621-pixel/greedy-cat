@@ -116,7 +116,7 @@
     transition: transform 0.06s;
   }
   #vs-btn {
-    left: 49.3%; top: 93%;
+    left: 49.3%; top: 90%;
     transform: translate(-50%, -50%);
     width: 180px; height: 48px;
     background: linear-gradient(135deg, #4ECDC4, #2196F3) !important;
@@ -127,6 +127,18 @@
   }
   #vs-btn:hover { transform: translate(-50%,-50%) scale(1.08); }
   #vs-btn:active { transform: translate(-50%,-50%) scale(0.92); }
+  #net-btn {
+    left: 49.3%; top: 96%;
+    transform: translate(-50%, -50%);
+    width: 180px; height: 48px;
+    background: linear-gradient(135deg, #FF9F43, #EE5A24) !important;
+    border-radius: 16px; color: #fff; font-size: 18px; font-weight: bold;
+    border: 2px solid rgba(255,255,255,0.4);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  #net-btn:hover { transform: translate(-50%,-50%) scale(1.08); }
+  #net-btn:active { transform: translate(-50%,-50%) scale(0.92); }
 
   #lobby-screen {
     position: absolute; top:0; left:0; right:0; bottom:0;
@@ -155,7 +167,23 @@
   .room-code-big {
     font-size: 48px; font-weight: bold; color: #FFD700;
     letter-spacing: 10px; margin: 14px 0;
+    transition: transform 0.15s, text-shadow 0.15s;
   }
+  .room-code-big:hover {
+    transform: scale(1.05);
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+  }
+  .room-code-big:active { transform: scale(0.95); }
+  .room-code-big::after {
+    content: "点击复制";
+    position: absolute;
+    bottom: -20px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px; color: rgba(255,255,255,0.8);
+    letter-spacing: normal;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .room-code-big:hover::after { opacity: 1; }
   #room-code-input {
     width: 180px; padding: 10px; font-size: 28px; text-align: center;
     border-radius: 12px; border: 2px solid rgba(100,180,255,0.4);
@@ -173,7 +201,8 @@
 <div id="game-wrapper">
   <canvas id="gameCanvas" width="1280" height="720"></canvas>
   <button id="start-btn" class="overlay-btn" style="display:none;"></button>
-  <button id="vs-btn" class="overlay-btn" style="display:none;">双人对战</button>
+  <button id="vs-btn" class="overlay-btn" style="display:none;">双人同屏</button>
+  <button id="net-btn" class="overlay-btn" style="display:none;">在线对战</button>
   <button id="restart-btn" class="overlay-btn" style="display:none;"></button>
   <button id="back-btn" style="display:none;">🏠</button>
 
@@ -187,7 +216,7 @@
     <div class="lobby-box" id="lobby-wait" style="display:none;">
       <h2>房间已创建</h2>
       <p style="color:rgba(255,255,255,0.6);margin-bottom:4px;">将房间号告诉对手</p>
-      <div class="room-code-big" id="room-code-show"></div>
+      <div class="room-code-big" id="room-code-show" style="cursor:pointer; position:relative;" title="点击复制"></div>
       <p class="lobby-info" id="wait-status">等待对手加入...</p>
       <button class="lobby-back" id="wait-back-btn">← 取消</button>
     </div>
@@ -420,6 +449,12 @@ function removeBg(image, size, mode) {
     if (mode === 'none') return c;
     const id = cx.getImageData(0, 0, size, size);
     const d = id.data;
+    let transparentPixels = 0;
+    for (let i = 3; i < d.length; i += 4) {
+      if (d[i] < 250) transparentPixels++;
+    }
+    const pxCount = d.length / 4;
+    if (transparentPixels > pxCount * 0.01) return c;
     for (let i = 0; i < d.length; i += 4) {
       const br = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
       if (mode === 'white') {
@@ -510,7 +545,7 @@ let lastTickSec = -1, lastMilestone = 0;
 // ════════════════════════════════════════
 //  Multiplayer
 // ════════════════════════════════════════
-let isMulti=false, isHost=false, ws=null, syncAcc=0;
+let isMulti=false, isHost=false, ws=null, syncAcc=0, localDualMode=false;
 const SYNC_HZ=1/20;
 let remoteFace={noseX:0.5,mouthRatio:0,mouthWide:false,detected:false};
 let p2={catX:W/2,targetCatX:W/2,prevCatX:W/2,vel:0,lastMove:0,
@@ -557,18 +592,63 @@ function addFloat(x,y,pts){
 // ════════════════════════════════════════
 //  MediaPipe FaceMesh
 // ════════════════════════════════════════
-function onFaceResults(r){
-  if(!r.multiFaceLandmarks||r.multiFaceLandmarks.length===0){faceDetected=false;return;}
-  faceDetected=true;
-  const lm=r.multiFaceLandmarks[0];
-  faceNoseX=1.0-lm[1].x;
+function faceToMetrics(lm){
+  const noseX=1.0-lm[1].x;
   const ul=lm[13],ll=lm[14];
   const md=Math.hypot(ul.x-ll.x,ul.y-ll.y,ul.z-ll.z);
   const le=lm[33],re=lm[263];
   const ed=Math.hypot(le.x-re.x,le.y-re.y,le.z-re.z);
-  mouthRatio=ed>0.001?md/ed:0;
-  mouthSlightlyOpen=mouthRatio>=0.15;
-  mouthOpenWide=mouthRatio>=0.22;
+  const mr=ed>0.001?md/ed:0;
+  return {noseX,mouthRatio:mr,mouthWide:mr>=0.22,mouthSlight:mr>=0.15,detected:true};
+}
+function pickClosestFace(faces,targetX){
+  if(!faces.length)return null;
+  let bi=0,bd=Math.abs(faces[0].noseX-targetX);
+  for(let i=1;i<faces.length;i++){
+    const d=Math.abs(faces[i].noseX-targetX);
+    if(d<bd){bd=d;bi=i;}
+  }
+  return faces[bi];
+}
+function onFaceResults(r){
+  const lms=r.multiFaceLandmarks||[];
+  if(lms.length===0){
+    faceDetected=false;
+    if(localDualMode&&isMulti)remoteFace.detected=false;
+    return;
+  }
+  const faces=lms.map(faceToMetrics);
+  if(localDualMode&&isMulti){
+    const sorted=faces.slice().sort((a,b)=>a.noseX-b.noseX);
+    const f1=sorted[0];
+    faceDetected=!!f1;
+    if(f1){
+      faceNoseX=f1.noseX;
+      mouthRatio=f1.mouthRatio;
+      mouthSlightlyOpen=f1.mouthSlight;
+      mouthOpenWide=f1.mouthWide;
+    }
+    const f2=sorted[1];
+    if(f2){
+      remoteFace.noseX=f2.noseX;
+      remoteFace.mouthRatio=f2.mouthRatio;
+      remoteFace.mouthWide=f2.mouthWide;
+      remoteFace.detected=true;
+    }else{
+      remoteFace.detected=false;
+    }
+    return;
+  }
+  const mainFace=pickClosestFace(faces,faceNoseX);
+  if(mainFace){
+    faceDetected=true;
+    faceNoseX=mainFace.noseX;
+    mouthRatio=mainFace.mouthRatio;
+    mouthSlightlyOpen=mainFace.mouthSlight;
+    mouthOpenWide=mainFace.mouthWide;
+  }else{
+    faceDetected=false;
+  }
 }
 
 async function initFaceTracking(){
@@ -582,7 +662,7 @@ async function initFaceTracking(){
   try{
     if(typeof FaceMesh==='undefined')return;
     const fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
-    fm.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    fm.setOptions({maxNumFaces:2,refineLandmarks:true,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
     fm.onResults(onFaceResults);
     async function loop(){if(v.readyState>=2){try{await fm.send({image:v});}catch(e){}}requestAnimationFrame(loop);}
     loop();
@@ -758,6 +838,7 @@ function handleWsMsg(e){
     document.getElementById('restart-btn').style.display='none';
     document.getElementById('start-btn').style.display='block';
     document.getElementById('vs-btn').style.display='block';
+    document.getElementById('net-btn').style.display='block';
     stopBgm();
   }else if(m.type==='error'){
     document.getElementById('join-status').textContent=m.msg;
@@ -767,6 +848,7 @@ function handleWsMsg(e){
     document.getElementById('room-code-show').textContent='已连接';
     document.getElementById('wait-status').textContent='等待主机开始...';
   }else if(m.type==='created'){
+    console.log('Room created:', m.code);
     document.getElementById('lobby-menu').style.display='none';
     document.getElementById('lobby-wait').style.display='block';
     document.getElementById('room-code-show').textContent=m.code;
@@ -774,11 +856,32 @@ function handleWsMsg(e){
 }
 
 function connectWS(){
-  const proto=location.protocol==='https:'?'wss':'ws';
-  ws=new WebSocket(`${proto}://${location.host}`);
-  ws.onmessage=handleWsMsg;
-  ws.onerror=()=>{alert('无法连接服务器');};
-  return new Promise(r=>{ws.onopen=r;});
+  return new Promise((resolve, reject) => {
+    if (ws && ws.readyState === 1) return resolve();
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const host = location.host || 'localhost:3000'; // Fallback for file:// or empty host
+    try {
+      ws = new WebSocket(`${proto}://${host}`);
+      ws.onmessage = handleWsMsg;
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        resolve();
+      };
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        alert('无法连接服务器，请确保已在终端运行 npm start');
+        reject(err);
+      };
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        if (ws.readyState !== 1) {
+          reject(new Error('Connection timeout'));
+        }
+      }, 5000);
+    } catch (e) {
+      reject(e);
+    }
+  });
 }
 
 // ════════════════════════════════════════
@@ -931,8 +1034,8 @@ function renderPlaying(){
     drawSprite(img[guestKey],p2.catX,CAT_Y,CAT_SIZE,CAT_SIZE);
     // P1/P2 labels
     ctx.save();
-    strokeText('P1',catX,CAT_Y-CAT_SIZE*0.58,20,'#4FC3F7','#0D47A1','center','middle');
-    strokeText('P2',p2.catX,CAT_Y-CAT_SIZE*0.58,20,'#FF8A65','#BF360C','center','middle');
+    strokeText('1',catX,CAT_Y-CAT_SIZE*0.58,24,'#4FC3F7','#0D47A1','center','middle');
+    strokeText('2',p2.catX,CAT_Y-CAT_SIZE*0.58,24,'#FF8A65','#BF360C','center','middle');
     ctx.restore();
   }else{
     drawSprite(getCatImg(),catX,CAT_Y,CAT_SIZE,CAT_SIZE);
@@ -1049,9 +1152,11 @@ function bounceBtn(btn){
 
 const backBtn=document.getElementById('back-btn');
 const vsBtn=document.getElementById('vs-btn');
+const netBtn=document.getElementById('net-btn');
 const lobbyScreen=document.getElementById('lobby-screen');
 
 function returnToStart(){
+  localDualMode=false;
   isMulti=false;if(ws){try{ws.close();}catch(e){}}ws=null;
   gameState='start';stopBgm();
   document.getElementById('restart-btn').style.display='none';
@@ -1059,6 +1164,7 @@ function returnToStart(){
   lobbyScreen.style.display='none';
   document.getElementById('start-btn').style.display='block';
   vsBtn.style.display='block';
+  netBtn.style.display='block';
   // reset lobby panels
   document.getElementById('lobby-menu').style.display='block';
   document.getElementById('lobby-wait').style.display='none';
@@ -1070,11 +1176,13 @@ document.getElementById('start-btn').addEventListener('click',function(){
   ensureAudio(); sfx('click');
   if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
   bounceBtn(this);
+  localDualMode=false;
   isMulti=false;
   playBgm('menu');
   setTimeout(()=>{
     this.style.display='none';
     vsBtn.style.display='none';
+    netBtn.style.display='none';
     backBtn.style.display='block';
     gameState='playing';resetGame();playBgm('game');sfx('start');
   },650);
@@ -1101,6 +1209,7 @@ backBtn.addEventListener('click',function(){
   gameState='start';
   document.getElementById('start-btn').style.display='block';
   vsBtn.style.display='block';
+  netBtn.style.display='block';
   playBgm('menu');
 });
 
@@ -1108,7 +1217,28 @@ backBtn.addEventListener('click',function(){
 vsBtn.addEventListener('click',function(){
   ensureAudio(); sfx('click');
   if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
+  bounceBtn(this);
+  localDualMode=true;
+  isMulti=true;
+  isHost=true;
   this.style.display='none';
+  document.getElementById('start-btn').style.display='none';
+  netBtn.style.display='none';
+  lobbyScreen.style.display='none';
+  backBtn.style.display='block';
+  gameState='playing';
+  resetGame();
+  playBgm('game');
+  sfx('start');
+});
+
+netBtn.addEventListener('click',function(){
+  ensureAudio(); sfx('click');
+  if(!cameraGranted){document.getElementById('camera-error').style.display='flex';return;}
+  bounceBtn(this);
+  localDualMode=false;
+  this.style.display='none';
+  vsBtn.style.display='none';
   document.getElementById('start-btn').style.display='none';
   lobbyScreen.style.display='flex';
   document.getElementById('lobby-menu').style.display='block';
@@ -1116,11 +1246,34 @@ vsBtn.addEventListener('click',function(){
   document.getElementById('lobby-join').style.display='none';
 });
 
+document.getElementById('room-code-show').addEventListener('click', async function(){
+  const code = this.textContent;
+  if(!code || code === '已连接') return;
+  try {
+    await navigator.clipboard.writeText(code);
+    const oldText = this.textContent;
+    this.textContent = '已复制!';
+    this.style.letterSpacing = '2px';
+    setTimeout(() => {
+      this.textContent = oldText;
+      this.style.letterSpacing = '10px';
+    }, 1500);
+  } catch (err) {
+    console.error('Failed to copy: ', err);
+  }
+});
+
 document.getElementById('create-room-btn').addEventListener('click',async function(){
   sfx('click');
   isMulti=true;isHost=true;
-  await connectWS();
-  sendWS({type:'create'});
+  try {
+    await connectWS();
+    sendWS({type:'create'});
+  } catch (e) {
+    console.error('Failed to create room:', e);
+    isMulti=false;
+    isHost=false;
+  }
 });
 
 document.getElementById('show-join-btn').addEventListener('click',function(){
@@ -1137,8 +1290,15 @@ document.getElementById('join-confirm-btn').addEventListener('click',async funct
   const code=document.getElementById('room-code-input').value.trim();
   if(!code||code.length!==4){document.getElementById('join-status').textContent='请输入4位房间号';return;}
   isMulti=true;isHost=false;
-  await connectWS();
-  sendWS({type:'join',code});
+  try {
+    await connectWS();
+    sendWS({type:'join',code});
+  } catch (e) {
+    console.error('Failed to join room:', e);
+    isMulti=false;
+    isHost=false;
+    document.getElementById('join-status').textContent='无法连接服务器';
+  }
 });
 
 document.getElementById('lobby-back-btn').addEventListener('click',function(){
@@ -1169,6 +1329,7 @@ async function boot(){
   gameState='start';
   document.getElementById('start-btn').style.display='block';
   document.getElementById('vs-btn').style.display='block';
+  document.getElementById('net-btn').style.display='block';
   requestAnimationFrame(loop);
 
   document.getElementById('game-wrapper').addEventListener('pointerdown',function startMenuBgm(){
