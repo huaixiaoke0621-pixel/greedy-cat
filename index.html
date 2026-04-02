@@ -139,6 +139,19 @@
     box-shadow: 0 10px 22px rgba(0,0,0,0.35);
     display:none;
   }
+  #load-camera{
+    margin-top: 10px;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 900;
+    color: #fff;
+    background: linear-gradient(135deg, rgba(255,107,53,0.95), rgba(255,192,72,0.95));
+    box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+    display:none;
+  }
   .spinner {
     width: 48px; height: 48px;
     border: 5px solid rgba(255,255,255,0.15);
@@ -400,6 +413,7 @@
       </div>
       <div id="load-detail"></div>
       <button id="load-retry">重试加载</button>
+      <button id="load-camera">开启摄像头</button>
     </div>
   </div>
 </div>
@@ -454,10 +468,23 @@ function setLoading(pct, text, detail){
   if(t) t.textContent = text || '加载中…';
   if(d) d.textContent = detail || '';
 }
+function setLoadingDetail(detail){
+  const d=document.getElementById('load-detail');
+  if(d) d.textContent = detail || '';
+}
 function showLoadingRetry(msg){
   setLoading(0,'加载失败',msg||'请检查网络后重试');
   const btn=document.getElementById('load-retry');
   if(btn) btn.style.display='inline-block';
+}
+function showLoadingCamera(msg){
+  setLoadingDetail(msg||'请允许摄像头权限（用于面部识别）');
+  const btn=document.getElementById('load-camera');
+  if(btn) btn.style.display='inline-block';
+}
+function hideLoadingCamera(){
+  const btn=document.getElementById('load-camera');
+  if(btn) btn.style.display='none';
 }
 function hideLoadingScreen(){
   const s=document.getElementById('loading-screen');
@@ -1021,13 +1048,14 @@ function onFaceResults(r){
   }
 }
 
-async function initFaceTracking(fromUserGesture){
+async function initFaceTracking(fromUserGesture, uiMode){
   if(faceTrackingStarted) return true;
   const v=document.getElementById('webcam');
   v.muted = true;
   try{
     if(location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
-      setCameraError('需要在 HTTPS 环境下才能打开摄像头。<br>请用云端 https 链接访问，或在本机使用 http://localhost 打开');
+      if(uiMode==='loading') showLoadingCamera('需要在 HTTPS 环境下才能打开摄像头');
+      else setCameraError('需要在 HTTPS 环境下才能打开摄像头。<br>请用云端 https 链接访问，或在本机使用 http://localhost 打开');
       return false;
     }
     if(!faceStream){
@@ -1037,12 +1065,17 @@ async function initFaceTracking(fromUserGesture){
     v.srcObject=faceStream;
     cameraGranted=!!faceStream;
     hideCameraError();
+    if(uiMode==='loading') hideLoadingCamera();
     if(fromUserGesture){
       try{await v.play();}catch(e){}
     }else{
       v.play().catch(()=>{});
     }
   }catch(e){
+    if(uiMode==='loading'){
+      showLoadingCamera('请允许摄像头权限（用于面部识别）');
+      return false;
+    }
     if(fromUserGesture){
       const msg = (e && e.name) ? e.name : 'UnknownError';
       setCameraError(`需要摄像头权限才能玩游戏哦！<br>请允许浏览器访问您的摄像头<br><span style="font-size:14px;opacity:0.75;">${msg}</span>`);
@@ -1051,7 +1084,8 @@ async function initFaceTracking(fromUserGesture){
   }
   try{
     if(typeof FaceMesh==='undefined'){
-      if(fromUserGesture) setCameraError('人脸识别模块加载失败。<br>请刷新页面或检查网络后重试');
+      if(uiMode==='loading') showLoadingCamera('人脸识别模块加载失败，请刷新重试');
+      else if(fromUserGesture) setCameraError('人脸识别模块加载失败。<br>请刷新页面或检查网络后重试');
       return false;
     }
     const fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
@@ -1069,7 +1103,8 @@ async function initFaceTracking(fromUserGesture){
           if(!sendErrorShown){
             sendErrorShown=true;
             console.error('FaceMesh send error:',e);
-            if(fromUserGesture) setCameraError('人脸识别运行失败。<br>请刷新页面或稍后重试');
+            if(uiMode==='loading') showLoadingCamera('人脸识别运行失败，请刷新重试');
+            else if(fromUserGesture) setCameraError('人脸识别运行失败。<br>请刷新页面或稍后重试');
           }
         }
       }
@@ -1640,7 +1675,7 @@ function returnToStart(){
 document.getElementById('start-btn').addEventListener('click',async function(){
   ensureAudio(); sfx('click');
   if(!cameraGranted || !faceTrackingStarted){
-    const ok=await initFaceTracking(true);
+    const ok=await initFaceTracking(true,'camera');
     if(!ok) return;
   }
   preRenderBgmOnce();
@@ -1682,7 +1717,7 @@ backBtn.addEventListener('click',function(){
 netBtn.addEventListener('click',async function(){
   ensureAudio(); sfx('click');
   if(!cameraGranted || !faceTrackingStarted){
-    const ok=await initFaceTracking(true);
+    const ok=await initFaceTracking(true,'camera');
     if(!ok) return;
   }
   preRenderBgmOnce();
@@ -1808,8 +1843,11 @@ document.getElementById('retry-btn').addEventListener('click',()=>{
 async function boot(){
   const retryBtn=document.getElementById('load-retry');
   if(retryBtn) retryBtn.addEventListener('click',()=>location.reload());
+  const camBtn=document.getElementById('load-camera');
+  if(camBtn) camBtn.addEventListener('click',()=>initFaceTracking(true,'loading'));
 
   setLoading(0,'准备中…','');
+  initFaceTracking(false,'loading');
   try{
     await withTimeout(loadAllImages(), 45000, 'assets');
   }catch(e){
@@ -1830,7 +1868,7 @@ async function boot(){
   document.getElementById('start-btn').style.display='block';
   document.getElementById('net-btn').style.display='block';
   requestAnimationFrame(loop);
-  initFaceTracking(false);
+  initFaceTracking(false,'loading');
   setTimeout(()=>hideLoadingScreen(),180);
 
   document.getElementById('game-wrapper').addEventListener('pointerdown',function startMenuBgm(){
