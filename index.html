@@ -457,6 +457,15 @@ async function preRenderBgm() {
   ], 152, 0.05, 0.022);
 }
 
+let bgmPreRendered = false;
+let bgmPreRenderPromise = null;
+function preRenderBgmOnce(){
+  if(bgmPreRendered) return bgmPreRenderPromise || Promise.resolve();
+  if(bgmPreRenderPromise) return bgmPreRenderPromise;
+  bgmPreRenderPromise = preRenderBgm().then(()=>{bgmPreRendered=true;}).catch(()=>{});
+  return bgmPreRenderPromise;
+}
+
 function playBgm(name) {
   if (currentBgm === name) return;
   stopBgm();
@@ -873,13 +882,15 @@ async function initFaceTracking(fromUserGesture){
       v.play().catch(()=>{});
     }
   }catch(e){
-    const msg = (e && e.name) ? e.name : 'UnknownError';
-    setCameraError(`需要摄像头权限才能玩游戏哦！<br>请允许浏览器访问您的摄像头<br><span style="font-size:14px;opacity:0.75;">${msg}</span>`);
+    if(fromUserGesture){
+      const msg = (e && e.name) ? e.name : 'UnknownError';
+      setCameraError(`需要摄像头权限才能玩游戏哦！<br>请允许浏览器访问您的摄像头<br><span style="font-size:14px;opacity:0.75;">${msg}</span>`);
+    }
     return false;
   }
   try{
     if(typeof FaceMesh==='undefined'){
-      setCameraError('人脸识别模块加载失败。<br>请刷新页面或检查网络后重试');
+      if(fromUserGesture) setCameraError('人脸识别模块加载失败。<br>请刷新页面或检查网络后重试');
       return false;
     }
     const fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
@@ -897,7 +908,7 @@ async function initFaceTracking(fromUserGesture){
           if(!sendErrorShown){
             sendErrorShown=true;
             console.error('FaceMesh send error:',e);
-            setCameraError('人脸识别运行失败。<br>请刷新页面或稍后重试');
+            if(fromUserGesture) setCameraError('人脸识别运行失败。<br>请刷新页面或稍后重试');
           }
         }
       }
@@ -1466,16 +1477,12 @@ function returnToStart(){
 }
 
 document.getElementById('start-btn').addEventListener('click',async function(){
-  if(!gameImagesLoaded && gameImagesPromise){
-    this.style.opacity='0.5'; this.style.pointerEvents='none';
-    await gameImagesPromise;
-    this.style.opacity='1'; this.style.pointerEvents='auto';
-  }
   ensureAudio(); sfx('click');
   if(!cameraGranted || !faceTrackingStarted){
     const ok=await initFaceTracking(true);
     if(!ok) return;
   }
+  preRenderBgmOnce();
   bounceBtn(this);
   isMulti=false;
   playBgm('menu');
@@ -1512,16 +1519,12 @@ backBtn.addEventListener('click',function(){
 });
 
 netBtn.addEventListener('click',async function(){
-  if(!gameImagesLoaded && gameImagesPromise){
-    this.style.opacity='0.5'; this.style.pointerEvents='none';
-    await gameImagesPromise;
-    this.style.opacity='1'; this.style.pointerEvents='auto';
-  }
   ensureAudio(); sfx('click');
   if(!cameraGranted || !faceTrackingStarted){
     const ok=await initFaceTracking(true);
     if(!ok) return;
   }
+  preRenderBgmOnce();
   bounceBtn(this);
   this.style.display='none';
   document.getElementById('start-btn').style.display='none';
@@ -1643,15 +1646,21 @@ document.getElementById('retry-btn').addEventListener('click',()=>{
 // ════════════════════════════════════════
 async function boot(){
   loadAllImages().catch(e=>console.error('Image load:',e));
-  preRenderBgm().catch(e=>console.error('BGM render:',e));
   document.getElementById('loading-screen').style.display='none';
   gameState='start';
   document.getElementById('start-btn').style.display='block';
   document.getElementById('net-btn').style.display='block';
   requestAnimationFrame(loop);
 
+  initFaceTracking(false);
+  if('requestIdleCallback' in window){
+    requestIdleCallback(()=>preRenderBgmOnce(),{timeout:2000});
+  }else{
+    setTimeout(()=>preRenderBgmOnce(),1500);
+  }
+
   document.getElementById('game-wrapper').addEventListener('pointerdown',function startMenuBgm(){
-    if(gameState==='start'){ensureAudio();playBgm('menu');}
+    if(gameState==='start'){ensureAudio();preRenderBgmOnce();playBgm('menu');}
   },{capture:true});
 
   // face tracking starts on user interaction (single / online)
