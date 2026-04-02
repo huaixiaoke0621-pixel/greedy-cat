@@ -77,10 +77,67 @@
   #retry-btn:hover { background: #ff8c5a; }
   #loading-screen {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background: #1a1a2e;
+    background: radial-gradient(1200px 700px at 50% 30%, rgba(78,205,196,0.18), rgba(26,26,46,1) 65%);
     display: flex; flex-direction: column;
     justify-content: center; align-items: center;
-    color: #fff; font-size: 22px; z-index: 200;
+    color: #fff; font-size: 18px; z-index: 200;
+    opacity: 1;
+    transition: opacity 0.35s ease;
+  }
+  #loading-screen.hide { opacity: 0; pointer-events: none; }
+  .load-logo {
+    font-size: 48px;
+    font-weight: 1000;
+    letter-spacing: 3px;
+    color: #FFD700;
+    text-shadow: 0 8px 0 rgba(0,0,0,0.18);
+    margin-bottom: 10px;
+  }
+  .load-tip { color: rgba(255,255,255,0.75); margin-bottom: 18px; text-align:center; line-height: 1.6; }
+  .load-box {
+    width: 520px;
+    max-width: calc(100vw - 80px);
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 18px 18px 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .load-bar {
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+    overflow: hidden;
+  }
+  .load-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255,107,53,0.95), rgba(255,192,72,0.95));
+    transition: width 0.12s ease;
+  }
+  .load-row {
+    display:flex;
+    justify-content: space-between;
+    align-items:center;
+    margin-top: 10px;
+    font-weight: 900;
+  }
+  #load-percent { color:#fff; }
+  #load-text { color: rgba(255,255,255,0.85); font-weight: 700; }
+  #load-detail { margin-top: 8px; color: rgba(255,255,255,0.55); font-size: 13px; min-height: 18px; }
+  #load-retry {
+    margin-top: 14px;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 900;
+    color: #fff;
+    background: linear-gradient(135deg, #4ECDC4, #2196F3);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+    display:none;
   }
   .spinner {
     width: 48px; height: 48px;
@@ -332,7 +389,19 @@
     <p>需要摄像头权限才能玩游戏哦！<br>请允许浏览器访问您的摄像头</p>
     <button id="retry-btn">重 试</button>
   </div>
-  <div id="loading-screen"><div class="spinner"></div><p>资源加载中...</p></div>
+  <div id="loading-screen">
+    <div class="load-logo">贪吃猫</div>
+    <div class="load-tip">正在加载资源…<br>首次打开会稍微久一点</div>
+    <div class="load-box">
+      <div class="load-bar"><div class="load-fill" id="load-fill"></div></div>
+      <div class="load-row">
+        <div id="load-text">准备中…</div>
+        <div id="load-percent">0%</div>
+      </div>
+      <div id="load-detail"></div>
+      <button id="load-retry">重试加载</button>
+    </div>
+  </div>
 </div>
 <video id="webcam" autoplay playsinline style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
@@ -372,6 +441,29 @@ function setCameraError(html){
 function hideCameraError(){
   const box=document.getElementById('camera-error');
   box.style.display='none';
+}
+
+function setLoading(pct, text, detail){
+  const fill=document.getElementById('load-fill');
+  const percent=document.getElementById('load-percent');
+  const t=document.getElementById('load-text');
+  const d=document.getElementById('load-detail');
+  const p=Math.max(0,Math.min(100,Math.round(pct||0)));
+  if(fill) fill.style.width = p + '%';
+  if(percent) percent.textContent = p + '%';
+  if(t) t.textContent = text || '加载中…';
+  if(d) d.textContent = detail || '';
+}
+function showLoadingRetry(msg){
+  setLoading(0,'加载失败',msg||'请检查网络后重试');
+  const btn=document.getElementById('load-retry');
+  if(btn) btn.style.display='inline-block';
+}
+function hideLoadingScreen(){
+  const s=document.getElementById('loading-screen');
+  if(!s) return;
+  s.classList.add('hide');
+  setTimeout(()=>{s.style.display='none';},380);
 }
 
 function playTone(freq, freq2, dur, type, vol) {
@@ -650,21 +742,62 @@ async function preScaleBg(image) {
 let gameImagesLoaded = false;
 let gameImagesPromise = null;
 
+function withTimeout(p, ms, label){
+  return new Promise((resolve, reject)=>{
+    let done=false;
+    const t=setTimeout(()=>{
+      if(done) return;
+      done=true;
+      reject(new Error(`${label||'task'} timeout`));
+    }, ms);
+    p.then(v=>{
+      if(done) return;
+      done=true;
+      clearTimeout(t);
+      resolve(v);
+    }).catch(e=>{
+      if(done) return;
+      done=true;
+      clearTimeout(t);
+      reject(e);
+    });
+  });
+}
 async function loadAllImages(){
-  const startKeys = ['startBg'];
-  await Promise.all(startKeys.map(k=>loadImg(SRC[k]).then(i=>img[k]=i)));
+  const keys = Object.keys(SRC);
+  const total = keys.length + BG_KEYS.size;
+  let done = 0;
+  const step = (k, stage) => {
+    done++;
+    const pct = Math.round((done / total) * 90);
+    setLoading(pct,'加载资源中…',`${stage}：${k} (${done}/${total})`);
+  };
+  const ordered = [
+    'startBg','单人模式按钮','双人模式按钮',
+    'gameBg','endBg',
+    'catNormal','catLookUp','catOpen','catEat','catDrool','catHurt','catHappy','catDisgust',
+    'cat2Normal','cat2LookUp','cat2Open','cat2Eat','cat2Drool','cat2Hurt','cat2Happy','cat2Disgust',
+    'fishBlue','fishGreen','fishRed','fishRainbow','puffer','turtle','sock','coin'
+  ].filter(k=>k in SRC);
+  const rest = keys.filter(k=>!ordered.includes(k));
+  const loadList = ordered.concat(rest);
 
-  gameImagesPromise = (async () => {
-    const keys = Object.keys(SRC).filter(k=>k!=='startBg');
-    await Promise.all(keys.map(k=>loadImg(SRC[k]).then(i=>{
-      const c=SPRITE_CFG[k];
-      img[k]=c?removeBg(i,c.s,c.m):i;
-    })));
-    for (const k of BG_KEYS) {
-      if (k!=='startBg' && img[k]) img[k] = await preScaleBg(img[k]);
+  for(const k of loadList){
+    try{
+      const raw = await withTimeout(loadImg(SRC[k]), 15000, k);
+      const c = SPRITE_CFG[k];
+      img[k] = c ? removeBg(raw, c.s, c.m) : raw;
+      step(k,'贴图');
+      if(BG_KEYS.has(k)){
+        img[k] = await preScaleBg(img[k]);
+        step(k,'背景适配');
+      }
+      if(done % 4 === 0) await new Promise(r=>setTimeout(r,0));
+    }catch(e){
+      throw new Error(`资源加载失败：${k}`);
     }
-    gameImagesLoaded = true;
-  })();
+  }
+  gameImagesLoaded = true;
 }
 
 // ════════════════════════════════════════
@@ -1645,22 +1778,40 @@ document.getElementById('retry-btn').addEventListener('click',()=>{
 //  Boot
 // ════════════════════════════════════════
 async function boot(){
-  loadAllImages().catch(e=>console.error('Image load:',e));
-  document.getElementById('loading-screen').style.display='none';
+  const retryBtn=document.getElementById('load-retry');
+  if(retryBtn) retryBtn.addEventListener('click',()=>location.reload());
+
+  setLoading(0,'准备中…','');
+  try{
+    await withTimeout(loadAllImages(), 45000, 'assets');
+  }catch(e){
+    console.error('Image load:',e);
+    showLoadingRetry('资源加载失败，请检查网络后重试');
+    return;
+  }
+
+  setLoading(92,'准备音乐…','');
+  try{
+    await withTimeout(preRenderBgmOnce(), 9000, 'bgm');
+    setLoading(100,'加载完成','');
+  }catch(e){
+    setLoading(100,'加载完成','音乐稍后准备，不影响游戏开始');
+  }
+
   gameState='start';
   document.getElementById('start-btn').style.display='block';
   document.getElementById('net-btn').style.display='block';
   requestAnimationFrame(loop);
-
   initFaceTracking(false);
-  if('requestIdleCallback' in window){
-    requestIdleCallback(()=>preRenderBgmOnce(),{timeout:2000});
-  }else{
-    setTimeout(()=>preRenderBgmOnce(),1500);
-  }
+  setTimeout(()=>hideLoadingScreen(),180);
 
   document.getElementById('game-wrapper').addEventListener('pointerdown',function startMenuBgm(){
-    if(gameState==='start'){ensureAudio();preRenderBgmOnce();playBgm('menu');}
+    if(gameState==='start'){
+      ensureAudio();
+      preRenderBgmOnce();
+      if(!cameraGranted || !faceTrackingStarted) initFaceTracking(true);
+      playBgm('menu');
+    }
   },{capture:true});
 
   // face tracking starts on user interaction (single / online)
