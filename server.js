@@ -3,7 +3,15 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 
 const app = express();
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, {
+  etag: true,
+  maxAge: '30d',
+  setHeaders(res, filePath) {
+    if (/\.(png|jpe?g|gif|webp|mp3|wav)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
