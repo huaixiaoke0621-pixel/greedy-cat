@@ -7,7 +7,7 @@ app.use(express.static(__dirname, {
   etag: true,
   maxAge: '30d',
   setHeaders(res, filePath) {
-    if (/\.(png|jpe?g|gif|webp|mp3|wav)$/i.test(filePath)) {
+    if (/\.(png|jpe?g|gif|webp|mp3|wav|wasm|data)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
   }

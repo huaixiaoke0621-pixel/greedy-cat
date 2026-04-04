@@ -418,7 +418,6 @@
   </div>
 </div>
 <video id="webcam" autoplay playsinline style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
 <script>
 (function(){
 'use strict';
@@ -1048,6 +1047,26 @@ function onFaceResults(r){
   }
 }
 
+let faceMeshLibPromise = null;
+function ensureFaceMeshLib(uiMode){
+  if (typeof FaceMesh !== 'undefined') return Promise.resolve(true);
+  if (faceMeshLibPromise) return faceMeshLibPromise;
+  const src = '/node_modules/@mediapipe/face_mesh/face_mesh.js';
+  faceMeshLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = () => reject(new Error('face_mesh.js load failed'));
+    document.head.appendChild(s);
+  }).catch(e => {
+    faceMeshLibPromise = null;
+    if (uiMode === 'loading') showLoadingCamera('人脸识别模块加载失败，请检查网络后重试');
+    throw e;
+  });
+  return faceMeshLibPromise;
+}
+
 async function initFaceTracking(fromUserGesture, uiMode){
   if(faceTrackingStarted) return true;
   const v=document.getElementById('webcam');
@@ -1083,12 +1102,13 @@ async function initFaceTracking(fromUserGesture, uiMode){
     return false;
   }
   try{
+    await withTimeout(ensureFaceMeshLib(uiMode), 8000, 'facemesh-lib');
     if(typeof FaceMesh==='undefined'){
       if(uiMode==='loading') showLoadingCamera('人脸识别模块加载失败，请刷新重试');
       else if(fromUserGesture) setCameraError('人脸识别模块加载失败。<br>请刷新页面或检查网络后重试');
       return false;
     }
-    const fm=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`});
+    const fm=new FaceMesh({locateFile:f=>`/node_modules/@mediapipe/face_mesh/${f}`});
     fm.setOptions({maxNumFaces:1,refineLandmarks:false,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
     fm.onResults(onFaceResults);
     let sendErrorShown=false;
@@ -1674,12 +1694,12 @@ function returnToStart(){
 
 document.getElementById('start-btn').addEventListener('click',async function(){
   ensureAudio(); sfx('click');
+  bounceBtn(this);
   if(!cameraGranted || !faceTrackingStarted){
     const ok=await initFaceTracking(true,'camera');
     if(!ok) return;
   }
   preRenderBgmOnce();
-  bounceBtn(this);
   isMulti=false;
   playBgm('menu');
   setTimeout(()=>{
@@ -1716,12 +1736,12 @@ backBtn.addEventListener('click',function(){
 
 netBtn.addEventListener('click',async function(){
   ensureAudio(); sfx('click');
+  bounceBtn(this);
   if(!cameraGranted || !faceTrackingStarted){
     const ok=await initFaceTracking(true,'camera');
     if(!ok) return;
   }
   preRenderBgmOnce();
-  bounceBtn(this);
   this.style.display='none';
   document.getElementById('start-btn').style.display='none';
   lobbyScreen.style.display='flex';

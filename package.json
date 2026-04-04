@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": { "start": "node server.js" },
   "dependencies": {
+    "@mediapipe/face_mesh": "0.4.1633559619",
     "express": "^4.21.0",
     "ws": "^8.18.0"
   },
